@@ -4,10 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iroh = { git = "https://github.com/n0-computer/iroh", rev = "v0.33.0" }
-iroh-blobs = "0.33.1"
+iroh = "0.33.0"
+iroh-blobs = { version = "0.33.1", features = ["rpc"]}
+iroh-docs = { version = "0.33.0", features = ["rpc"]}
+iroh-gossip = "0.33.0"
 tokio = { version = "1.44.2", features = ["full"] }
 tracing = "0.1"
 anyhow = "1"
 tempfile = "3.19.1"
 rand = "0.8.5"
+serde_json = "1.0.140"
+futures = "=0.3.31"
+quic-rpc = "0.19.0"
