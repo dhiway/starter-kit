@@ -1,5 +1,6 @@
 use iroh_blobs::net_protocol::Blobs;
 use iroh_blobs::store::ExportFormat;
+use iroh_blobs::Hash;
 use iroh_docs::protocol::Docs;
 use iroh_blobs::store::{mem::Store as BlobStore, ExportMode};
 use iroh_docs::{NamespaceId, NamespaceSecret, AuthorId};
@@ -15,6 +16,7 @@ use quic_rpc::transport::flume::FlumeConnector;
 use iroh_docs::rpc::proto::{Request, Response};
 use iroh_docs::rpc::client::docs::Client;
 use iroh_docs::rpc::proto::GetExactRequest;
+use bytes::Bytes;
 
 /// Save a BTreeMap<String, Value> as a new document in iroh-docs.
 pub async fn save_as_doc(
@@ -50,7 +52,7 @@ pub async fn fetch_doc_as_json(
     docs: Arc<Docs<BlobStore>>,
     blobs: Arc<Blobs<BlobStore>>,
     doc_id: NamespaceId,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<BTreeMap<String, Value>, Box<dyn std::error::Error>> {
     let doc_client = docs.client();
 
     let Some(doc) = doc_client.open(doc_id).await? else {
@@ -60,7 +62,7 @@ pub async fn fetch_doc_as_json(
     let author = doc_client.authors().default().await?;
     println!("authors: {:?}", author);
 
-    let keys = ["owner", "version", "hash", "entry_count"];
+    let keys = ["registry_name", "schema", "file", "archived"];
 
     let blob_client = blobs.client();
     let mut result_map = BTreeMap::new();
@@ -87,5 +89,31 @@ pub async fn fetch_doc_as_json(
     let json_output = serde_json::to_string_pretty(&result_map)?;
     println!("{}", json_output);
 
-    Ok(())
+    Ok(result_map)
+}
+
+pub async fn set_value(
+    docs: Arc<Docs<BlobStore>>,
+    doc_id: NamespaceId,
+    key: String,
+    value: Value
+) -> Result<Hash, Box<dyn std::error::Error>> {
+    let doc_client = docs.client();
+
+    let Some(doc) = doc_client.open(doc_id).await? else {
+        return Err("Document not found".into());
+    };
+
+    let author = doc_client.authors().default().await?;
+
+    let key_bytes = Bytes::from(key.clone());
+    let value_bytes = Bytes::from(serde_json::to_vec(&value)?);
+
+    let updated_hash = doc.set_bytes(
+        author,
+        key_bytes,
+        value_bytes,
+    ).await?;
+
+    Ok(updated_hash)
 }
