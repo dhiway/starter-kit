@@ -5,17 +5,19 @@ use crate::docs::{save_as_doc, set_value, fetch_doc_as_json};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use iroh_docs::NamespaceId;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use iroh_blobs::net_protocol::Blobs;
 use iroh_docs::protocol::Docs;
 use iroh_blobs::store::mem::Store as BlobStore;
 use std::path::Path;
 use lazy_static::lazy_static;
+use serde::{Serialize, Deserialize};
 
 // === Global Mappings ===
 lazy_static! {
-    static ref REGISTRY_SCHEMA_MAP: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
-    static ref REGISTRY_DOCID_MAP: Mutex<HashMap<String, NamespaceId>> = Mutex::new(HashMap::new());
+    static ref REGISTRY_SCHEMA_MAP: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref REGISTRY_DOCID_MAP: Arc<Mutex<HashMap<String, NamespaceId>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 pub async fn create_registry(
@@ -48,32 +50,69 @@ pub async fn create_registry(
 
     // Step 5: Update global maps
     {
-        let mut schema_map = REGISTRY_SCHEMA_MAP.lock().unwrap();
+        let mut schema_map = REGISTRY_SCHEMA_MAP.lock().await;
         schema_map.insert(registry_name.to_string(), schema_str.to_string());
     }
     {
-        let mut docid_map = REGISTRY_DOCID_MAP.lock().unwrap();
+        let mut docid_map = REGISTRY_DOCID_MAP.lock().await;
         docid_map.insert(registry_name.to_string(), doc_id.clone());
     }
 
     Ok(doc_id)
 }
 
-pub fn show_all_registry() {
-    println!("=== All Registries ===");
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Registry {
+    pub registry_name: String,
+    pub schema: String,
+    pub file: Option<Value>,
+    pub archived: Option<Value>,
+    pub doc_id: NamespaceId,
+}
 
-    let schema_map = REGISTRY_SCHEMA_MAP.lock().unwrap();
-    let docid_map = REGISTRY_DOCID_MAP.lock().unwrap();
+pub async fn show_all_registry(
+    docs: Arc<Docs<BlobStore>>,
+    blobs: Arc<Blobs<BlobStore>>,
+) -> Vec<Registry> {
+    let docid_map = REGISTRY_DOCID_MAP.lock().await;
 
-    for (registry_name, schema_str) in schema_map.iter() {
-        let doc_id = docid_map.get(registry_name);
-        println!("Registry Name: {}", registry_name);
-        println!("Schema: {}", schema_str);
-        match doc_id {
-            Some(id) => println!("Doc ID: {}\n", id),
-            None => println!("Doc ID: Not found\n"),
+    let mut registries = Vec::new();
+
+    for (name, doc_id) in docid_map.iter() {
+        // let doc_id: NamespaceId = match doc_id_str.parse() {
+        //     Ok(id) => id,
+        //     Err(_) => continue,
+        // };
+
+        match fetch_doc_as_json(docs.clone(), blobs.clone(), *doc_id).await {
+            Ok(json_map) => {
+                let registry_name = json_map
+                    .get("registry_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(name)
+                    .to_string();
+
+                let schema = json_map
+                    .get("schema")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("{}")
+                    .to_string();
+
+                    registries.push(Registry {
+                        registry_name,
+                        schema,
+                        file: json_map.get("file").cloned(),
+                        archived: json_map.get("archived").cloned(),
+                        doc_id: doc_id.clone(),
+                });
+            }
+            Err(e) => {
+                eprintln!("❌ Error fetching doc {} ({}): {}", name, doc_id, e);
+            }
         }
     }
+
+    registries
 }
 
 pub async fn archive_registry(
@@ -81,7 +120,7 @@ pub async fn archive_registry(
     blobs: Arc<Blobs<BlobStore>>,
     registry_name: &str
 ) -> Result<Hash, Box<dyn std::error::Error>> {
-    let registry_map = REGISTRY_DOCID_MAP.lock().unwrap();
+    let registry_map = REGISTRY_DOCID_MAP.lock().await;
     let Some(doc_id) = registry_map.get(registry_name) else {
         return Err(format!("No document found for registry: {}", registry_name).into());
     };

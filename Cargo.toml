@@ -16,7 +16,8 @@ rand = "0.8.5"
 serde_json = "1.0.140"
 futures = "=0.3.31"
 quic-rpc = "0.19.0"
-axum = "0.7.9"
+axum = { version = "0.7.9", features = ["multipart", "macros"] }
 lazy_static = "1.5.0"
 bytes = "1.10.1"
-tower-http = { version = "0.6.2", features = ["cors"]}
+tower-http = { version = "0.6.2", features = ["cors"] }
+serde = "1.0.219"

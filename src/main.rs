@@ -2,30 +2,30 @@ mod iroh_wrapper;
 mod blobs;
 mod docs;
 mod helper;
+mod handlers;
+mod state;
 
-use crate::iroh_wrapper::{setup_iroh_node, IrohNode};
-use crate::blobs::{save_file_to_blobs, export_blob_to_file};
-use crate::docs::save_as_doc;
-use crate::docs::fetch_doc_as_json;
+use iroh_wrapper::{setup_iroh_node, IrohNode};
+use blobs::{save_file_to_blobs, export_blob_to_file};
+use docs::save_as_doc;
+use docs::fetch_doc_as_json;
 use tokio::signal;
 use std::error::Error;
 use serde_json::json;
 use std::{collections::BTreeMap, path::{Path, PathBuf}, thread, time};
 use std::process::Command;
-use crate::helper::{create_registry, show_all_registry, archive_registry};
+use helper::{create_registry, show_all_registry, archive_registry};
 use iroh_docs::NamespaceId;
-use axum::{Router, routing::post, Extension};
+use axum::{Router, routing::{post, get}, Extension};
 use std::sync::Arc;
 use iroh_blobs::net_protocol::Blobs;
 use iroh_docs::protocol::Docs;
 use iroh_blobs::store::mem::Store as BlobStore;
 use tower_http::cors::{CorsLayer, Any};
+use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler};
+use state::AppState;
+use axum::routing::MethodRouter;
 
-#[derive(Clone)]
-pub struct AppState {
-    pub docs: Arc<Docs<BlobStore>>,
-    pub blobs: Arc<Blobs<BlobStore>>,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -50,6 +50,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         docs: iroh_node.docs.clone(),
         blobs: iroh_node.blobs.clone(),
     };
+
+    let app = Router::new()
+        .route("/create_registry", post(create_registry_handler))
+        .route("/all_registries", get(get_all_registries_handler))
+        .route("/archive", post(archive_registry_handler))
+        .with_state(state)
+        .layer(CorsLayer::very_permissive());
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:4000").await?;
+    println!("Server started on http://localhost:4000");
+
+    axum::serve(listener, app).await?;
     
     // // Try saving a file
     // let hash = save_file_to_blobs(iroh_node.blobs.clone(), Path::new("doctors_1998.csv"), true).await?;
