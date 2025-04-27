@@ -92,11 +92,12 @@ pub async fn show_all_registry(
                     .unwrap_or(name)
                     .to_string();
 
-                let schema = json_map
+                let schema_value = json_map
                     .get("schema")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("{}")
-                    .to_string();
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({}));
+                
+                let schema = schema_value.to_string();
 
                     registries.push(Registry {
                         registry_name,
