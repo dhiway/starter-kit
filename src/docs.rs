@@ -45,6 +45,7 @@ pub async fn save_as_doc(
             .await?;
     }
 
+    println!("Document saved with ID: {}", doc.id());
     Ok(doc.id())
 }
 
@@ -52,6 +53,7 @@ pub async fn fetch_doc_as_json(
     docs: Arc<Docs<BlobStore>>,
     blobs: Arc<Blobs<BlobStore>>,
     doc_id: NamespaceId,
+    keys: Option<Vec<&str>>,
 ) -> Result<BTreeMap<String, Value>, Box<dyn std::error::Error>> {
     let doc_client = docs.client();
 
@@ -62,20 +64,13 @@ pub async fn fetch_doc_as_json(
     let author = doc_client.authors().default().await?;
     println!("authors: {:?}", author);
 
-    let keys = ["registry_name", "schema", "file", "archived"];
-
     let blob_client = blobs.client();
     let mut result_map = BTreeMap::new();
+    let keys = keys.unwrap_or_else(|| vec!["registry_name", "schema", "file", "archived"]);
 
     for key in keys {
         if let Some(entry) = doc.get_exact(author, key, false).await? {
             let hash = entry.content_hash();
-
-            // let value = blob_client
-            //     .read(hash)
-            //     .await?;
-
-            // println!("value: {:?}", value);
 
             let read_to_bytes = blob_client
                 .read_to_bytes(hash)
@@ -116,4 +111,19 @@ pub async fn set_value(
     ).await?;
 
     Ok(updated_hash)
+}
+
+pub async fn delete_doc(
+    docs: Arc<Docs<BlobStore>>,
+    doc_id: NamespaceId
+) -> Result<(), Box<dyn std::error::Error>> {
+    let doc_client = docs.client();
+
+    let Some(doc) = doc_client.open(doc_id).await? else {
+        return Err("Document not found".into());
+    };
+
+    doc_client.drop_doc(doc_id).await?;
+
+    Ok(())
 }

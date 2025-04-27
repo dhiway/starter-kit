@@ -10,12 +10,18 @@ use axum::{
 use std::{sync::Arc, fs::File, io::Write};
 use tempfile::NamedTempFile;
 use crate::state::AppState;
-use crate::helper::{create_registry, show_all_registry, archive_registry};
+use crate::helper::{create_registry, show_all_registry, archive_registry, add_entry, display_entry, delete_entry};
 use std::fs;
 use std::path::PathBuf;
 use serde_json::json;
 use serde::Deserialize;
+use iroh_docs::NamespaceId;
+use std::str::FromStr;
+use std::collections::BTreeMap;
+use serde_json::Value;
 
+// This module contains the handlers for the API endpoints.
+// Registry handlers
 pub async fn create_registry_handler(
     State(state): State<AppState>,
     mut multipart: Multipart,
@@ -98,6 +104,81 @@ pub async fn archive_registry_handler(
         &payload.registry_name,
     ).await {
         Ok(doc_id) => (StatusCode::OK, doc_id.to_string()).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+// Entry handlers
+#[derive(Deserialize)]
+pub struct AddEntryForm {
+    registry_id: String, // We will receive registry_id from UI
+    entry_data: String, // The entry JSON
+}
+
+pub async fn add_entry_handler(
+    State(state): State<AppState>,
+    Form(payload): Form<AddEntryForm>,
+) -> impl IntoResponse {
+    // println!("Received payload: {:?}", &payload.registry_id);
+    let registry_id = match NamespaceId::from_str(&payload.registry_id) {
+        Ok(id) => id,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid registry_id: {}", e)).into_response(),
+    };
+
+    // Parse the entry_data string into BTreeMap<String, Value>
+    let entry_data: BTreeMap<String, Value> = match serde_json::from_str(&payload.entry_data) {
+        Ok(data) => data,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid entry_data JSON: {}", e)).into_response(),
+    };
+
+    match add_entry(state.docs.clone(), registry_id, entry_data).await {
+        Ok(_) => (StatusCode::OK, "Entry added successfully").into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DisplayEntryForm {
+    registry_id: String, // Coming from UI (doc_id)
+}
+
+pub async fn display_entry_handler(
+    State(state): State<AppState>,
+    Form(payload): Form<DisplayEntryForm>,
+) -> impl IntoResponse {
+    let registry_id = match NamespaceId::from_str(&payload.registry_id) {
+        Ok(id) => id,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid registry_id: {}", e)).into_response(),
+    };
+
+    match display_entry(state.docs.clone(), state.blobs.clone(), registry_id).await {
+        Ok(entries) => Json(json!({ "entries": entries })).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DeleteEntryForm {
+    registry_id: String,
+    entry_id: String,
+}
+
+pub async fn delete_entry_handler(
+    State(state): State<AppState>,
+    Form(payload): Form<DeleteEntryForm>,
+) -> impl IntoResponse {
+    let registry_id = match NamespaceId::from_str(&payload.registry_id) {
+        Ok(id) => id,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid registry_id: {}", e)).into_response(),
+    };
+
+    let entry_id = match NamespaceId::from_str(&payload.entry_id) {
+        Ok(id) => id,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid entry_id: {}", e)).into_response(),
+    };
+
+    match delete_entry(state.docs.clone(), registry_id, entry_id).await {
+        Ok(_) => (StatusCode::OK, "Entry deleted successfully").into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }

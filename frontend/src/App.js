@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 function Home() {
   return (
@@ -102,39 +103,167 @@ function SeeAllRegistries() {
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
           {registries.map((reg, index) => (
-            <div
-              key={index}
-              style={{
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-                padding: "1rem",
-                minWidth: "300px",
-                backgroundColor: "#f9f9f9",
-              }}
+            <Link 
+              to={`/all-registries/${encodeURIComponent(reg.doc_id)}`} 
+              key={index} 
+              style={{ textDecoration: "none", color: "inherit" }}
             >
-              <h3>{reg.registry_name}</h3>
-              <pre style={{ whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
-                {/* <strong>Schema:</strong> {JSON.stringify(reg.schema, null, 2)} */}
-                <strong>Schema:</strong> {reg.schema}
-              </pre>
-              {reg.file && (
-                <div>
-                  <strong>File:</strong>
-                  <pre style={{ whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
-                    {JSON.stringify(reg.file, null, 2)}
-                  </pre>
-                </div>
-              )}
-              {reg.archived !== undefined && (
-                <p>
-                  <strong>Archived:</strong> {reg.archived ? "Yes" : "No"}
-                </p>
-              )}
-              <p><strong>Doc ID:</strong> {reg.doc_id}</p>
-            </div>
+              <div
+                style={{
+                  border: "1px solid #ccc",
+                  borderRadius: "8px",
+                  padding: "1rem",
+                  minWidth: "300px",
+                  backgroundColor: "#f9f9f9",
+                }}
+              >
+                <h3>{reg.registry_name}</h3>
+                <pre style={{ whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
+                  <strong>Schema:</strong> {reg.schema}
+                </pre>
+                {reg.file && (
+                  <div>
+                    <strong>File:</strong>
+                    <pre style={{ whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
+                      {JSON.stringify(reg.file, null, 2)}
+                    </pre>
+                  </div>
+                )}
+                {reg.archived !== undefined && (
+                  <p>
+                    <strong>Archived:</strong> {reg.archived ? "Yes" : "No"}
+                  </p>
+                )}
+                <p><strong>Doc ID:</strong> {reg.doc_id}</p>
+              </div>
+            </Link>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function RegistryEntries() {
+  const { doc_id } = useParams(); // get doc_id from URL
+  const [showModal, setShowModal] = useState(false);
+  const [entryData, setEntryData] = useState("");
+  const [entries, setEntries] = useState([]); // 🔥 to store fetched entries
+
+  // 🔥 Fetch entries when component mounts
+  useEffect(() => {
+    const fetchEntries = async () => {
+      try {
+        const urlEncodedData = new URLSearchParams();
+        urlEncodedData.append("registry_id", doc_id.replace(/,/g, ""));
+
+        const response = await fetch("http://localhost:4000/display_entries", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: urlEncodedData.toString(),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const result = await response.json();
+        setEntries(result.entries); // 🔥 save to state
+      } catch (error) {
+        alert("Failed to fetch entries: " + error.message);
+      }
+    };
+
+    fetchEntries();
+  }, [doc_id]); // 🔥 fetch again if doc_id changes
+
+  const handleAddEntry = async () => {
+    try {
+      const urlEncodedData = new URLSearchParams();
+      urlEncodedData.append("registry_id", doc_id.replace(/,/g, ""));
+      urlEncodedData.append("entry_data", entryData);
+  
+      const response = await fetch("http://localhost:4000/add_entry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded", 
+        },
+        body: urlEncodedData.toString(),
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+  
+      const result = await response.text();
+      alert(result);
+      setShowModal(false);
+      setEntryData("");
+
+      // 🔥 Refresh entries after adding
+      window.location.reload(); 
+    } catch (error) {
+      alert("Failed to add entry: " + error.message);
+    }
+  };
+
+  return (
+    <div style={{ padding: "2rem" }}>
+      <h2>All Entries</h2>
+      <p>Registry Doc ID: {doc_id.replace(/,/g, "")}</p>
+
+      <button onClick={() => setShowModal(true)} style={{ marginBottom: "1rem" }}>
+        Add Entry
+      </button>
+
+      {showModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: "30%",
+            left: "30%",
+            right: "30%",
+            backgroundColor: "white",
+            padding: "2rem",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.26)",
+            zIndex: 1000,
+          }}
+        >
+          <h3>Add New Entry</h3>
+          <textarea
+            placeholder="Enter entry JSON"
+            rows="10"
+            cols="50"
+            value={entryData}
+            onChange={(e) => setEntryData(e.target.value)}
+          />
+          <br />
+          <button onClick={handleAddEntry} style={{ marginRight: "1rem" }}>
+            Submit
+          </button>
+          <button onClick={() => setShowModal(false)}>Cancel</button>
+        </div>
+      )}
+
+      {/* 🔥 Display Entries */}
+      <div style={{ marginTop: "2rem" }}>
+        <h3>Entries:</h3>
+        {entries.length === 0 ? (
+          <p>No entries found.</p>
+        ) : (
+          entries.map((entry, index) => (
+            <div key={index} style={{ padding: "1rem", border: "1px solid black", marginBottom: "1rem" }}>
+              {Object.entries(entry).map(([key, value]) => (
+                <p key={key}><strong>{key}</strong>: {JSON.stringify(value)}</p>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -201,6 +330,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/create" element={<CreateRegistry />} />
         <Route path="/all-registries" element={<SeeAllRegistries />} />
+        <Route path="/all-registries/:doc_id" element={<RegistryEntries />} />
         <Route path="/archive" element={<ArchiveRegistry />} />
       </Routes>
     </Router>

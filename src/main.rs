@@ -22,7 +22,7 @@ use iroh_blobs::net_protocol::Blobs;
 use iroh_docs::protocol::Docs;
 use iroh_blobs::store::mem::Store as BlobStore;
 use tower_http::cors::{CorsLayer, Any};
-use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler};
+use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler, add_entry_handler, display_entry_handler};
 use state::AppState;
 use axum::routing::MethodRouter;
 
@@ -55,6 +55,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/create_registry", post(create_registry_handler))
         .route("/all_registries", get(get_all_registries_handler))
         .route("/archive", post(archive_registry_handler))
+        .route("/add_entry", post(add_entry_handler))
+        .route("/display_entries", post(display_entry_handler))
         .with_state(state)
         .layer(CorsLayer::very_permissive());
 
