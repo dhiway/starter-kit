@@ -22,7 +22,7 @@ use iroh_blobs::net_protocol::Blobs;
 use iroh_docs::protocol::Docs;
 use iroh_blobs::store::mem::Store as BlobStore;
 use tower_http::cors::{CorsLayer, Any};
-use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler, add_entry_handler, display_entry_handler};
+use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler, add_entry_handler, display_entry_handler, delete_entry_handler};
 use state::AppState;
 use axum::routing::MethodRouter;
 
@@ -57,6 +57,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/archive", post(archive_registry_handler))
         .route("/add_entry", post(add_entry_handler))
         .route("/display_entries", post(display_entry_handler))
+        .route("/delete_entry", post(delete_entry_handler))
         .with_state(state)
         .layer(CorsLayer::very_permissive());
 
@@ -64,70 +65,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Server started on http://localhost:4000");
 
     axum::serve(listener, app).await?;
-    
-    // // Try saving a file
-    // let hash = save_file_to_blobs(iroh_node.blobs.clone(), Path::new("doctors_1998.csv"), true).await?;
-    // // println!("Blob ticket: {}", ticket);
-
-    // let five_sec = time::Duration::from_millis(5000);
-    // thread::sleep(five_sec);
-
-    // // Try exporting a blob to a file
-    // let destination = std::fs::canonicalize(".")?.join("retrieved.txt");
-    // export_blob_to_file(iroh_node.blobs.clone(), hash, destination).await?;
-    
-    // // Try saving a doc
-    // let mut doc_data = BTreeMap::new();
-    // doc_data.insert("owner".to_string(), json!("dhiway"));
-    // doc_data.insert("version".to_string(), json!(1));
-    // doc_data.insert("hash".to_string(), json!(hash));
-    // doc_data.insert("entry_count".to_string(), json!(5));
-
-    // let doc_id = save_as_doc(iroh_node.docs.clone(), doc_data).await?;
-    // println!("Doc saved with id: {}", doc_id);
-
-    // thread::sleep(five_sec);
-
-    // fetch_doc_as_json(iroh_node.docs.clone(), iroh_node.blobs.clone(), doc_id).await?;
-
-    // let schema = r#"{"owner": "string", "version": "int", "entry_count": "int", "namespace_id": "str"}"#;
-    // let file_path = "doctors_1998.csv";
-    // let name = "doctors_1998";
-    // match create_registry(iroh_node.blobs.clone(), iroh_node.docs.clone(), name, schema, file_path).await {
-    //     Ok(doc_key) => {
-    //         println!("✅ Registry created with key: {}", doc_key);
-    //         thread::sleep(time::Duration::from_millis(5000));
-    //         fetch_doc_as_json(iroh_node.docs.clone(), iroh_node.blobs.clone(), doc_key).await?;
-    //     },
-    //     Err(e) => eprintln!("❌ Error: {}", e),
-    // }
-
-    // let schema = r#"{"owner": "string", "version": "int", "entry_count": "int", "namespace_id": "str"}"#;
-    // let file_path = "doctors_2020.csv";
-    // let name = "doctors_2020";
-    // match create_registry(iroh_node.blobs.clone(), iroh_node.docs.clone(), name, schema, file_path).await {
-    //     Ok(doc_key) => {
-    //         println!("✅ Registry created with key: {}", doc_key);
-
-    //         thread::sleep(time::Duration::from_millis(5000));
-    //         fetch_doc_as_json(iroh_node.docs.clone(), iroh_node.blobs.clone(), doc_key).await?;
-
-    //         thread::sleep(time::Duration::from_millis(5000));
-    //         archive_registry(iroh_node.docs.clone(), iroh_node.blobs.clone(), "doctors_2020").await?;
-    //         println!("✅ Registry archived");
-
-    //         thread::sleep(time::Duration::from_millis(5000));
-    //         fetch_doc_as_json(iroh_node.docs.clone(), iroh_node.blobs.clone(), doc_key).await?;
-
-    //         // thread::sleep(time::Duration::from_millis(5000));
-    //         // archive_registry(iroh_node.docs.clone(), iroh_node.blobs.clone(), "doctors_2020").await?;
-    //     },
-    //     Err(e) => println!("❌ Error: {}", e),
-    // }
-
-    // thread::sleep(time::Duration::from_millis(5000));
-    // show_all_registry();
-
     
     println!("Press Ctrl+C to shut down...");
 

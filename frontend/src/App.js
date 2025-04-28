@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { BrowserRouter as Router, Route, Routes, Link } from "react-router-dom";
 import { useParams } from "react-router-dom";
 
@@ -148,66 +148,97 @@ function RegistryEntries() {
   const { doc_id } = useParams(); // get doc_id from URL
   const [showModal, setShowModal] = useState(false);
   const [entryData, setEntryData] = useState("");
-  const [entries, setEntries] = useState([]); // 🔥 to store fetched entries
+  const [entries, setEntries] = useState([]); // to store fetched entries
 
-  // 🔥 Fetch entries when component mounts
-  useEffect(() => {
-    const fetchEntries = async () => {
-      try {
-        const urlEncodedData = new URLSearchParams();
-        urlEncodedData.append("registry_id", doc_id.replace(/,/g, ""));
+  // Use useCallback to memoize the fetchEntries function
+  const fetchEntries = useCallback(async () => {
+    try {
+      const urlEncodedData = new URLSearchParams();
+      urlEncodedData.append("registry_id", doc_id.replace(/,/g, ""));
 
-        const response = await fetch("http://localhost:4000/display_entries", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: urlEncodedData.toString(),
-        });
+      const response = await fetch("http://localhost:4000/display_entries", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: urlEncodedData.toString(),
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText);
-        }
-
-        const result = await response.json();
-        setEntries(result.entries); // 🔥 save to state
-      } catch (error) {
-        alert("Failed to fetch entries: " + error.message);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
-    };
 
+      const result = await response.json();
+      setEntries(result.entries); // save to state
+      console.log("Fetched entries:", result.entries);
+    } catch (error) {
+      alert("Failed to fetch entries: " + error.message);
+    }
+  }, [doc_id]); // only re-run fetchEntries when doc_id changes
+
+  // useEffect now depends on fetchEntries
+  useEffect(() => {
     fetchEntries();
-  }, [doc_id]); // 🔥 fetch again if doc_id changes
+  }, [fetchEntries]); // No warning now because of useCallback
 
   const handleAddEntry = async () => {
     try {
       const urlEncodedData = new URLSearchParams();
       urlEncodedData.append("registry_id", doc_id.replace(/,/g, ""));
       urlEncodedData.append("entry_data", entryData);
-  
+
       const response = await fetch("http://localhost:4000/add_entry", {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded", 
+          "Content-Type": "application/x-www-form-urlencoded",
         },
         body: urlEncodedData.toString(),
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText);
       }
-  
+
       const result = await response.text();
       alert(result);
       setShowModal(false);
       setEntryData("");
 
-      // 🔥 Refresh entries after adding
-      window.location.reload(); 
+      // Call fetchEntries again after adding a new entry
+      fetchEntries(); // Ensure entries are refreshed
     } catch (error) {
       alert("Failed to add entry: " + error.message);
+    }
+  };
+
+  const handleDeleteEntry = async (entryId) => {
+    try {
+      const urlEncodedData = new URLSearchParams();
+      urlEncodedData.append("registry_id", doc_id.replace(/,/g, ""));
+      urlEncodedData.append("entry_id", entryId);
+
+      const response = await fetch("http://localhost:4000/delete_entry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: urlEncodedData.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      const result = await response.text();
+      alert(result);
+
+      // Call fetchEntries again after deleting an entry
+      fetchEntries(); // Ensure entries are refreshed
+    } catch (error) {
+      alert("Failed to delete entry: " + error.message);
     }
   };
 
@@ -249,17 +280,22 @@ function RegistryEntries() {
         </div>
       )}
 
-      {/* 🔥 Display Entries */}
       <div style={{ marginTop: "2rem" }}>
         <h3>Entries:</h3>
         {entries.length === 0 ? (
           <p>No entries found.</p>
         ) : (
           entries.map((entry, index) => (
-            <div key={index} style={{ padding: "1rem", border: "1px solid black", marginBottom: "1rem" }}>
+            <div
+              key={index}
+              style={{ padding: "1rem", border: "1px solid black", marginBottom: "1rem" }}
+            >
               {Object.entries(entry).map(([key, value]) => (
-                <p key={key}><strong>{key}</strong>: {JSON.stringify(value)}</p>
+                <p key={key}>
+                  <strong>{key}</strong>: {JSON.stringify(value)}
+                </p>
               ))}
+              <button onClick={() => handleDeleteEntry(entry.id)}>Delete</button>
             </div>
           ))
         )}

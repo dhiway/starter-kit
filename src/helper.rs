@@ -210,6 +210,8 @@ pub async fn add_entry(
         .or_insert_with(Vec::new)
         .push(entry_id); // Add the new entry ID into the list for this registry
 
+    println!("entries: {:?}", entries_map);
+
     Ok(())
 }
 
@@ -254,19 +256,21 @@ pub async fn display_entry(
 
     // Step 4: For each entry_id, fetch the document as JSON
     for entry_id in entry_ids {
-        let entry_json = fetch_doc_as_json(
+        let mut entry_json = fetch_doc_as_json(
             docs.clone(),
             blobs.clone(),
             *entry_id,
             Some(keys_vec.iter().map(|s| s.as_str()).collect()),
         ).await?;
 
+        entry_json.insert("id".to_string(), Value::String(entry_id.to_string()));
+
         entries.push(entry_json);
     }
+    println!("entries: {:?}", entries);
 
     Ok(entries)
 }
-
 
 // delete entry
 pub async fn delete_entry(
@@ -275,6 +279,7 @@ pub async fn delete_entry(
     entry_id: NamespaceId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut entries_map = REGISTRY_ENTRIES_MAP.lock().await;
+    println!("entries_map: {:?}", entries_map);
 
     // Check if the registry exists
     if let Some(entry_list) = entries_map.get_mut(&registry_id) {
