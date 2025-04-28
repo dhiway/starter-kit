@@ -2,13 +2,10 @@ use std::result::Result::Ok;
 use axum::{
     Form,
     Json,
-    Extension,
     extract::{Multipart, State},
     http::StatusCode,
     response::IntoResponse,
 };
-use std::{sync::Arc, fs::File, io::Write};
-use tempfile::NamedTempFile;
 use crate::state::AppState;
 use crate::helper::{create_registry, show_all_registry, archive_registry, add_entry, display_entry, delete_entry};
 use std::fs;

@@ -1,21 +1,11 @@
 use iroh_blobs::net_protocol::Blobs;
-use iroh_blobs::store::ExportFormat;
 use iroh_blobs::Hash;
 use iroh_docs::protocol::Docs;
-use iroh_blobs::store::{mem::Store as BlobStore, ExportMode};
-use iroh_docs::{NamespaceId, NamespaceSecret, AuthorId};
-use futures::StreamExt;
+use iroh_blobs::store::mem::Store as BlobStore;
+use iroh_docs::NamespaceId;
 use std::collections::BTreeMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use serde_json::Value;
-use iroh_docs::rpc::client::authors;
-use iroh_docs::rpc::client::docs::Doc;
-use quic_rpc::transport::flume::FlumeConnector;
-use iroh_docs::rpc::proto::{Request, Response};
-use iroh_docs::rpc::client::docs::Client;
-use iroh_docs::rpc::proto::GetExactRequest;
 use bytes::Bytes;
 
 /// Save a BTreeMap<String, Value> as a new document in iroh-docs.
@@ -119,7 +109,7 @@ pub async fn delete_doc(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let doc_client = docs.client();
 
-    let Some(doc) = doc_client.open(doc_id).await? else {
+    let Some(_doc) = doc_client.open(doc_id).await? else {
         return Err("Document not found".into());
     };
 

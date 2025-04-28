@@ -6,25 +6,13 @@ mod handlers;
 mod state;
 
 use iroh_wrapper::{setup_iroh_node, IrohNode};
-use blobs::{save_file_to_blobs, export_blob_to_file};
-use docs::save_as_doc;
-use docs::fetch_doc_as_json;
 use tokio::signal;
 use std::error::Error;
-use serde_json::json;
-use std::{collections::BTreeMap, path::{Path, PathBuf}, thread, time};
 use std::process::Command;
-use helper::{create_registry, show_all_registry, archive_registry};
-use iroh_docs::NamespaceId;
-use axum::{Router, routing::{post, get}, Extension};
-use std::sync::Arc;
-use iroh_blobs::net_protocol::Blobs;
-use iroh_docs::protocol::Docs;
-use iroh_blobs::store::mem::Store as BlobStore;
-use tower_http::cors::{CorsLayer, Any};
+use axum::{Router, routing::{post, get}};
+use tower_http::cors::CorsLayer;
 use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler, add_entry_handler, display_entry_handler, delete_entry_handler};
 use state::AppState;
-use axum::routing::MethodRouter;
 
 
 #[tokio::main]

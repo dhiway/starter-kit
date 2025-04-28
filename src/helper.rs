@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use iroh_blobs::Hash;
-use crate::blobs::save_file_to_blobs;
+use crate::blobs::add_blob_from_path;
 use crate::docs::{save_as_doc, set_value, fetch_doc_as_json, delete_doc};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -39,7 +39,7 @@ pub async fn create_registry(
     }
 
     // Step 2: Save file to blobs and get hash
-    let hash = save_file_to_blobs(blobs.clone(), Path::new(file_path), true).await?;
+    let hash = add_blob_from_path(blobs.clone(), Path::new(file_path), true).await?.hash;
 
     // Step 3: Compose document JSON
     let mut doc_data = BTreeMap::new();
@@ -137,7 +137,7 @@ pub async fn archive_registry(
     };
 
     let doc_client = docs.client();
-    let Some(doc) = doc_client.open(doc_id.clone()).await? else {
+    let Some(_doc) = doc_client.open(doc_id.clone()).await? else {
         return Err(format!("Document not found: {}", doc_id).into());
     };
 
