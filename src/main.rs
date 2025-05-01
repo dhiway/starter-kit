@@ -4,15 +4,22 @@ mod docs;
 mod helper;
 mod handlers;
 mod state;
+mod utils;
 
 use iroh_wrapper::{setup_iroh_node, IrohNode};
 use tokio::signal;
+use core::time;
 use std::error::Error;
 use std::process::Command;
 use axum::{Router, routing::{post, get}};
 use tower_http::cors::CorsLayer;
 use handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler, add_entry_handler, display_entry_handler, delete_entry_handler};
 use state::AppState;
+use docs::{get_document, save_as_doc, create_doc, list_docs, add_doc_schema, fetch_doc_as_json, set_entry};
+
+use std::collections::BTreeMap;
+use serde_json::Value;
+use tokio::time::{sleep, Duration};
 
 
 #[tokio::main]
@@ -38,6 +45,48 @@ async fn main() -> Result<(), Box<dyn Error>> {
         docs: iroh_node.docs.clone(),
         blobs: iroh_node.blobs.clone(),
     };
+
+    // let docId = create_doc(state.docs.clone()).await?;
+    // println!("Doc saved with id: {:?}", docId);
+
+    // sleep(Duration::from_secs(5)).await;
+
+    // let mut schema: BTreeMap<String, Value> = BTreeMap::new();
+    // schema.insert("name".to_string(), Value::String("string".to_string()));
+    // schema.insert("age".to_string(), Value::String("integer".to_string()));
+    // schema.insert("is_member".to_string(), Value::String("boolean".to_string()));
+    // println!("JSON: {:#?}", schema);
+
+    // let hash = add_doc_schema(state.docs.clone(), docId. clone(), schema.clone()).await?;
+    // println!("Schema added with hash: {:?}", hash);
+
+    // sleep(Duration::from_secs(5)).await;
+
+    // let keys: Vec<&str> = vec!["schema"];
+    // let schema = fetch_doc_as_json(state.docs.clone(), state.blobs.clone(), docId.clone(), Some(keys)).await?;
+    // println!("Document fetched: {:#?}", schema);
+
+    // sleep(Duration::from_secs(5)).await;
+
+    // let mut entry: BTreeMap<String, Value> = BTreeMap::new();
+    // entry.insert("name".to_string(), Value::String("Alice".to_string()));
+    // entry.insert("age".to_string(), Value::Number(20.into()));
+    // entry.insert("is_member".to_string(), Value::Bool(true));
+    // println!("JSON: {:#?}", entry);
+
+    // let entry_hash = set_entry(state.docs.clone(), state.blobs.clone(), docId.clone(), "name".to_string(), Value::String("Alice".to_string())).await?;
+    // println!("Entry added with hash: {:?}", entry_hash);
+    // sleep(Duration::from_secs(2)).await;
+    // let entry_hash = set_entry(state.docs.clone(), state.blobs.clone(), docId.clone(), "age".to_string(), Value::Number(20.into())).await?;
+    // println!("Entry added with hash: {:?}", entry_hash);
+    // sleep(Duration::from_secs(2)).await;
+    // let entry_hash = set_entry(state.docs.clone(), state.blobs.clone(), docId.clone(), "is_member".to_string(), Value::Number(20.into())).await?;
+    // println!("Entry added with hash: {:?}", entry_hash);
+    // sleep(Duration::from_secs(2)).await;
+
+    // let keys: Vec<&str> = vec!["schema", "name", "age", "is_member"];
+    // let schema = fetch_doc_as_json(state.docs.clone(), state.blobs.clone(), docId.clone(), Some(keys)).await?;
+    // println!("Document fetched: {:#?}", schema);
 
     let app = Router::new()
         .route("/create_registry", post(create_registry_handler))
