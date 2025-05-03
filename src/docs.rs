@@ -138,7 +138,14 @@ use std::str::FromStr;
 use serde::Serialize;
 use iroh_docs::actor::OpenState;
 
-// get_document
+/// Retrieves a document by its ID.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `doc_id` - The unique document namespace ID.
+/// 
+/// # Returns
+/// * `Doc` - The opened document client.
 pub async fn get_document(
     docs: Arc<Docs<BlobStore>>,
     doc_id: NamespaceId,
@@ -154,7 +161,14 @@ pub async fn get_document(
     Ok(doc)
 }
 
-// get_blob_entry
+/// Reads and decodes a blob entry from storage.
+/// 
+/// # Arguments
+/// * `blobs` - The Arc-wrapped Blobs client.
+/// * `hash` - The hash of the blob to retrieve.
+/// 
+/// # Returns
+/// * `String` - The UTF-8 decoded blob content.
 pub async fn get_blob_entry(
     blobs: Arc<Blobs<BlobStore>>,
     hash: Hash,
@@ -172,7 +186,13 @@ pub async fn get_blob_entry(
     Ok(decoded_str.to_string())
 }
 
-// create_doc
+/// Creates a new document and returns its encoded ID.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// 
+/// # Returns
+/// * `String` - The base64-encoded document ID.
 pub async fn create_doc(
     docs: Arc<Docs<BlobStore>>,
 ) -> anyhow::Result<String> {
@@ -188,7 +208,13 @@ pub async fn create_doc(
     Ok(doc_id)
 }
 
-// list_docs
+/// Lists all documents along with their capability types.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// 
+/// # Returns
+/// * `Vec<(String, CapabilityKind)>` - A list of encoded document IDs and their capabilities.
 pub async fn list_docs(
     docs: Arc<Docs<BlobStore>>,
 ) -> anyhow::Result<Vec<(String, CapabilityKind)>> {
@@ -213,7 +239,14 @@ pub async fn list_docs(
     Ok(doc_list)
 }
 
-// drop_doc
+/// Deletes a document by its encoded ID.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `doc_id` - The base64-encoded document ID to delete.
+/// 
+/// # Returns
+/// * `()` - Indicates successful deletion.
 pub async fn drop_doc(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -232,7 +265,16 @@ pub async fn drop_doc(
     Ok(())
 }
 
-// share_doc
+/// Shares a document using the given mode and address options.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `doc_id` - The base64-encoded document ID to share.
+/// * `mode` - The sharing mode (read/write).
+/// * `addr_options` - Peer address options to include.
+/// 
+/// # Returns
+/// * `String` - The generated document share ticket.
 pub async fn share_doc(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -253,7 +295,14 @@ pub async fn share_doc(
     Ok(doc_ticket.to_string())
 }
 
-// join_doc
+/// Joins a shared document using its ticket.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `ticket` - The share ticket string.
+/// 
+/// # Returns
+/// * `String` - The namespace ID of the joined document.
 pub async fn join_doc(
     docs: Arc<Docs<BlobStore>>,
     ticket: String,
@@ -271,7 +320,14 @@ pub async fn join_doc(
     Ok(doc_id.id().to_string())
 }
 
-// close_doc
+/// Closes an open document.
+/// 
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `doc_id` - The base64-encoded document ID to close.
+/// 
+/// # Returns
+/// * `()` - Indicates successful closure.
 pub async fn close_doc(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -289,17 +345,24 @@ pub async fn close_doc(
     Ok(())
 }
 
-/// I assume this is the correct way to send the 'schema'
-///{
-///  "type": "object",
-///  "properties": {
-///    "owner": { "type": "string" },
-///    "name": { "type": "string" },
-///    "number_of_entries": { "type": "integer" },
-///    "terms_and_conditions": { "type": "string" }
-///  },
-///  "required": ["owner", "name", "number_of_entries", "terms_and_conditions"]
-///}
+/// Adds a JSON Schema to a document if it's currently empty.
+/// 
+/// This schema acts as a contract for all future entries in the document.
+/// The schema must be a valid JSON Schema, and it will be stored under the key `"schema"`.
+///
+/// Example schema:
+/// ```json
+/// let schema = r#"{
+///     "type": "object",
+///     "properties": {
+///       "owner": { "type": "string" },
+///       "name": { "type": "string" },
+///       "number_of_entries": { "type": "integer" },
+///       "terms_and_conditions": { "type": "string" }
+///     },
+///     "required": ["owner", "name", "number_of_entries", "terms_and_conditions"]
+/// }"#;
+/// ```
 pub async fn add_doc_schema(
     docs: Arc<Docs<BlobStore>>,
     author_id: String,
@@ -341,14 +404,19 @@ pub async fn add_doc_schema(
     Ok(updated_hash.to_string())
 }
 
-// update_doc_schema
-// do we need this? 
-
-/// Extending the example above 'add_doc_schema'(suppose doc_id is "0xabc")
-/// let _ = doc.set_entry( , , "0xabc", "owner", "\"Dhiway\"".to_string()).await;
-/// let _ = doc.set_entry( , , "0xabc", "name", "\"Registry for Land Records\"".to_string()).await;
-/// let _ = doc.set_entry( , , "0xabc", "number_of_entries", "50".to_string()).await;
-/// let _ = doc.set_entry( , , "0xabc", "terms_and_conditions", "\"I agree\"".to_string()).await;
+/// Adds a new entry (key-value pair) to the document after validating it against the schema, if one exists.
+///
+/// If a schema is present in the document, the entry must conform to it.
+///
+/// Example entry(according to the schema used in `add_doc_schema` comments):
+/// ```json
+/// let entry_1 = json!({
+///     "owner": "Dhiway",
+///     "name": "Cyra",
+///     "number_of_entries": 3,
+///     "terms_and_conditions": "Agreed"
+/// });
+/// ```
 pub async fn set_entry(
     docs: Arc<Docs<BlobStore>>,
     blobs: Arc<Blobs<BlobStore>>,
@@ -418,7 +486,17 @@ pub async fn set_entry(
     Ok(hash.to_string())
 }
 
-// set_entry_file
+/// Adds a file as an entry to the document, only if no schema is defined.
+///
+/// # Parameters
+/// - `docs`: Shared reference to the document store.
+/// - `doc_id`: Document ID to which the file will be added.
+/// - `author_id`: SS58-encoded author ID.
+/// - `key`: Key under which the file will be stored in the document.
+/// - `file_path`: Path to the file to import.
+///
+/// # Returns
+/// - Outcome including key, hash, and size of the imported file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ImportFileOutcome {
     /// The key of the entry
@@ -484,7 +562,17 @@ pub async fn set_entry_file (
     })
 }
 
-// get_entry
+/// Fetches an entry from a document along with metadata like hash and timestamp.
+///
+/// # Parameters
+/// - `docs`: Shared reference to the document store.
+/// - `doc_id`: The ID of the document to fetch from.
+/// - `author_id`: SS58-encoded author ID who owns the entry.
+/// - `key`: Key to look up in the document.
+/// - `include_empty`: Whether to return empty (tombstoned) entries.
+///
+/// # Returns
+/// - `Some(EntryDetails)` if entry exists, else `None`.
 #[derive(Serialize, Debug, Clone)]
 pub struct EntryDetails {
     namespace: EntryIdDetails,
@@ -558,7 +646,14 @@ pub async fn get_entry(
     Ok(None)
 }
 
-// get_entry_blob
+/// Retrieves a blob entry's content using its hash.
+/// 
+/// # Arguments
+/// * `blobs` - Shared reference to the `Blobs` store.
+/// * `hash` - The hash of the blob to retrieve (as a hex string).
+///
+/// # Returns
+/// The content of the blob as a `String`.
 pub async fn get_entry_blob(
     blobs: Arc<Blobs<BlobStore>>,
     hash: String,
@@ -573,21 +668,22 @@ pub async fn get_entry_blob(
     Ok(content)
 }
 
-/// examples of query_params:
-/// {
-///  "author_id": "5F3sa2TJ...authorSS58",
-///  "key": "owner",
-///  "limit": 10,
-///  "offset": 0,
-///  "include_empty": false,
-///  "sort_by": "key",
-///  "sort_direction": "ascending"
-/// }
-/// or
-/// {
-///  "key_prefix": "term",
-///  "sort_by": "key"
-/// }
+/// Retrieves entries from a document based on provided query parameters.
+/// 
+/// # Arguments
+/// * `docs` - Shared reference to the `Docs` store.
+/// * `doc_id` - The document ID as a string (base64-encoded).
+/// * `query_params` - JSON object with optional query fields such as:
+///     - `author_id`: Filter by author's SS58 address.
+///     - `key`: Filter by exact key.
+///     - `key_prefix`: Filter by prefix match.
+///     - `limit`, `offset`: Pagination controls.
+///     - `include_empty`: Include empty entries.
+///     - `sort_by`: Sorting field ("author" or "key").
+///     - `sort_direction`: Sorting direction ("ascending" or "descending").
+///
+/// # Returns
+/// A list of `EntryDetails` matching the query.
 pub async fn get_entries(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -689,7 +785,16 @@ pub async fn get_entries(
     Ok(entries)
 }
 
-// delete_entry
+/// Deletes an entry from a document using author ID and key.
+/// 
+/// # Arguments
+/// * `docs` - Shared reference to the `Docs` store.
+/// * `doc_id` - The document ID (base64-encoded).
+/// * `author_id` - SS58-encoded author ID of the entry.
+/// * `key` - The key of the entry to delete.
+///
+/// # Returns
+/// The number of deleted entries (should be 1 if successful).
 pub async fn delete_entry(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -726,7 +831,14 @@ pub async fn delete_entry(
     Ok(delete)
 }
 
-// leave
+/// Leaves the current document, releasing resources and closing its state.
+/// 
+/// # Arguments
+/// * `docs` - Shared reference to the `Docs` store.
+/// * `doc_id` - The document ID (base64-encoded).
+///
+/// # Returns
+/// An empty result on success.
 pub async fn leave(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -744,7 +856,14 @@ pub async fn leave(
     Ok(())
 }
 
-// status
+/// Retrieves the current open status of a document.
+/// 
+/// # Arguments
+/// * `docs` - Shared reference to the `Docs` store.
+/// * `doc_id` - The document ID (base64-encoded).
+///
+/// # Returns
+/// The `OpenState` representing whether the document is joined or not.
 pub async fn status (
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -763,7 +882,14 @@ pub async fn status (
     Ok(status)
 }
 
-// get_download_policy
+/// Fetches the download policy of a document, if any.
+///
+/// # Arguments
+/// * `docs` - Shared reference to the `Docs` store.
+/// * `doc_id` - The document ID (base64-encoded).
+///
+/// # Returns
+/// A JSON representation of the download policy.
 pub async fn get_download_policy(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -784,7 +910,15 @@ pub async fn get_download_policy(
     Ok(api_policy.to_json())
 }
 
-// set_download_policy
+/// Sets or updates the download policy of a document.
+/// 
+/// # Arguments
+/// * `docs` - Shared reference to the `Docs` store.
+/// * `doc_id` - The document ID (base64-encoded).
+/// * `download_policy` - JSON object representing the download policy.
+///
+/// # Returns
+/// An empty result on success.
 pub async fn set_download_policy(
     docs: Arc<Docs<BlobStore>>,
     doc_id: String,
@@ -805,3 +939,6 @@ pub async fn set_download_policy(
 
     Ok(())
 }
+
+// update_doc_schema
+// do we need this? 

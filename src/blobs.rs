@@ -14,6 +14,7 @@ use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use std::str::FromStr;
 
 /// Adds raw bytes as a blob.
 /// 
@@ -66,14 +67,12 @@ pub async fn add_blob_named(
 /// # Arguments
 /// * `blobs` - The Arc-wrapped Blobs client.
 /// * `file_path` - The path to the file.
-/// * `in_place` - Whether to hard-link (if possible) instead of copying.
 /// 
 /// # Returns
 /// * `AddOutcome` - Metadata about the added blob.
 pub async fn add_blob_from_path(
     blobs: Arc<Blobs<Store>>,
-    file_path: &Path,
-    in_place: bool,
+    file_path: &Path
 ) -> anyhow::Result<AddOutcome> {
     let blobs_client = blobs.client();
     
@@ -81,7 +80,7 @@ pub async fn add_blob_from_path(
         .with_context(|| format!("Failed to canonicalize path: {:?}", file_path))?;
     
     let add_progress = blobs_client
-        .add_from_path(abs_path.clone(), in_place, SetTagOption::Auto, WrapOption::NoWrap)
+        .add_from_path(abs_path.clone(), false, SetTagOption::Auto, WrapOption::NoWrap)
         .await
         .with_context(|| format!("Failed to add file from path: {:?}", abs_path))?;
     
@@ -136,9 +135,12 @@ pub async fn list_blobs(
 /// * `String` - UTF-8 content or base64-encoded blob data.
 pub async fn get_blob(
     blobs: Arc<Blobs<Store>>,
-    hash: Hash,
+    hash: String,
 ) -> anyhow::Result<String> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash: {}", hash))?;
     
     let blob_content = blobs_client
         .read_to_bytes(hash)
@@ -164,9 +166,12 @@ pub async fn get_blob(
 /// * `String` - Blob status as a string.
 pub async fn status_blob(
     blobs: Arc<Blobs<Store>>,
-    hash: Hash,
+    hash: String,
 ) -> anyhow::Result<String> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash: {}", hash))?;
 
     let blob_status = blobs_client
         .status(hash)
@@ -192,9 +197,12 @@ pub async fn status_blob(
 /// * `bool` - True if blob exists, false otherwise.
 pub async fn has_blob(
     blobs: Arc<Blobs<Store>>,
-    hash: Hash,
+    hash: String,
 ) -> anyhow::Result<bool> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash: {}", hash))?;
 
     let is_present = blobs_client
         .has(hash)
@@ -215,10 +223,16 @@ pub async fn has_blob(
 /// * `DownloadOutcome` - Result of the download operation.
 pub async fn download_blob(
     blobs: Arc<Blobs<Store>>,
-    hash: Hash,
-    node_id: NodeId,
+    hash: String,
+    node_id: String,
 ) -> anyhow::Result<DownloadOutcome> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash: {}", hash))?;
+
+    let node_id = NodeId::from_str(&node_id)
+        .with_context(|| format!("Failed to parse node ID: {}", node_id))?;
 
     let node_addr = NodeAddr::from(node_id);
 
@@ -247,22 +261,28 @@ pub async fn download_blob(
 /// * `DownloadOutcome` - Result of the download operation.
 pub async fn download_hash_sequence(
     blobs: Arc<Blobs<Store>>,
-    hashes: Hash,
-    node_id: NodeId,
+    hash: String,
+    node_id: String,
 ) -> anyhow::Result<DownloadOutcome> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash sequence: {}", hash))?;
+
+    let node_id = NodeId::from_str(&node_id)
+        .with_context(|| format!("Failed to parse node ID: {}", node_id))?;
 
     let node_addr = NodeAddr::from(node_id);
 
     let download_progress = blobs_client
-        .download_hash_seq(hashes, node_addr)
+        .download_hash_seq(hash, node_addr)
         .await
-        .with_context(|| format!("Failed to initiate hash sequence download with hash: {}", hashes))?;
+        .with_context(|| format!("Failed to initiate hash sequence download with hash: {}", hash))?;
 
     let download_outcome = download_progress
         .finish()
         .await
-        .with_context(|| format!("Failed to finish hash sequence download with hash: {}", hashes))?;
+        .with_context(|| format!("Failed to finish hash sequence download with hash: {}", hash))?;
 
     Ok(download_outcome)
 }
@@ -278,10 +298,13 @@ pub async fn download_hash_sequence(
 /// * `DownloadOutcome` - Result of the download operation.
 pub async fn download_with_options(
     blobs: Arc<Blobs<Store>>,
-    hash: Hash,
+    hash: String,
     options: DownloadOptions,
 ) -> anyhow::Result<DownloadOutcome> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash with options: {}", hash))?;
 
     let download_progress = blobs_client
         .download_with_opts(hash, options)
@@ -360,10 +383,13 @@ pub async fn delete_tag(
 /// * `()` - Empty result on success.
 pub async fn export_blob_to_file(
     blobs: Arc<Blobs<Store>>,
-    hash: Hash,
+    hash: String,
     destination: PathBuf,
 ) -> Result<()> {
     let blobs_client = blobs.client();
+
+    let hash = Hash::from_str(&hash)
+        .with_context(|| format!("Failed to parse hash for export: {}", hash))?;
 
     blobs_client
         .export(hash, destination.clone() , ExportFormat::Blob, ExportMode::Copy)

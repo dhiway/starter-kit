@@ -39,7 +39,7 @@ pub async fn create_registry(
     }
 
     // Step 2: Save file to blobs and get hash
-    let hash = add_blob_from_path(blobs.clone(), Path::new(file_path), true).await?.hash;
+    let hash = add_blob_from_path(blobs.clone(), Path::new(file_path)).await?.hash;
 
     // Step 3: Compose document JSON
     let mut doc_data = BTreeMap::new();
