@@ -62,7 +62,7 @@ impl SS58AuthorId {
             .map_err(|e| anyhow!("Failed to retrieve public key: {e}"))?;
 
         // Set the SS58 address format (custom 29 used in Cyra)
-        sp_core::crypto::set_default_ss58_version(sp_core::crypto::Ss58AddressFormat::custom(29));
+        sp_core::crypto::set_default_ss58_version(Ss58AddressFormat::custom(29));
 
         let ss58_compatible_key = ed25519::Public::from_raw(*public_key.as_bytes());
         let ss58_string = ss58_compatible_key.to_ss58check();

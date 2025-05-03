@@ -1,5 +1,4 @@
 use iroh::{Endpoint, RelayMode, SecretKey, protocol::Router};
-use sp_core::ecdsa::Public;
 use std::error::Error;
 use iroh_blobs::{net_protocol::Blobs, store::mem::Store as blob_store};
 use iroh_gossip::net::Gossip;
