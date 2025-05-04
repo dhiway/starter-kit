@@ -5,20 +5,26 @@ use iroh_gossip::net::Gossip;
 use iroh_docs::protocol::Docs;
 use std::sync::Arc;
 use iroh::PublicKey;
+use crate::cli::CliArgs;
 
 pub struct IrohNode {
-    pub endpoint: Endpoint,
     pub node_id: PublicKey,
     pub router: Router,
     pub blobs: Arc<Blobs<blob_store>>,
     pub docs: Arc<Docs<blob_store>>,
 }
 
-/// Spins up an Iroh node with a default relay and returns the Endpoint and NodeId.
-pub async fn setup_iroh_node() -> Result<IrohNode, Box<dyn Error>> {
-    // For now, generate a new secret key each time (TODO: persist this later)
-    let mut rng = rand::rngs::OsRng;
-    let secret_key = SecretKey::generate(&mut rng);
+pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> {
+    // Use provided secret key if given, else generate new one
+    let secret_key = if let Some(sk_hex) = args.secret_key {
+        let bytes = hex::decode(&sk_hex)?;
+        let bytes: [u8; 32] = bytes.try_into().expect("Invalid secret key length");
+        SecretKey::from_bytes(&bytes)
+    } else {
+        let mut rng = rand::rngs::OsRng;
+        SecretKey::generate(&mut rng)
+    };
+    println!("Secret key: {}", secret_key);
 
     let endpoint = Endpoint::builder()
         .secret_key(secret_key)
@@ -33,7 +39,11 @@ pub async fn setup_iroh_node() -> Result<IrohNode, Box<dyn Error>> {
 
     let blobs = Blobs::memory().build(builder.endpoint());
     let gossip = Gossip::builder().spawn(builder.endpoint().clone()).await?;
-    let docs = Docs::memory().spawn(&blobs, &gossip).await?;
+    let docs = if let Some(path) = args.path {
+        Docs::persistent(path).spawn(&blobs, &gossip).await?
+    } else {
+        Docs::memory().spawn(&blobs, &gossip).await?
+    };
     
     let router = Router::builder(endpoint.clone())
         .accept(iroh_blobs::ALPN, blobs.clone())
@@ -43,7 +53,6 @@ pub async fn setup_iroh_node() -> Result<IrohNode, Box<dyn Error>> {
         .await?;
 
     Ok(IrohNode {
-        endpoint,
         node_id,
         router,
         blobs: Arc::new(blobs),

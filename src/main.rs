@@ -6,6 +6,7 @@ mod handlers;
 mod state;
 mod utils;
 mod authors;
+mod cli;
 
 use iroh_wrapper::{setup_iroh_node, IrohNode};
 use tokio::signal;
@@ -28,6 +29,8 @@ use iroh_docs::rpc::client::docs::ShareMode;
 use iroh_blobs::rpc::client::blobs::{AddOutcome, DownloadOutcome, DownloadOptions};
 use std::path::PathBuf;
 use iroh_blobs::util::SetTagOption;
+use crate::cli::CliArgs;
+use clap::Parser;
 
 use std::collections::BTreeMap;
 use serde_json::{Value, json};
@@ -36,19 +39,23 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // // Start frontend
-    // let frontend = Command::new("npm")
-    //     .arg("start")
-    //     .current_dir("frontend")
-    //     .spawn();
+    // Parse CLI arguments
+    let args = CliArgs::parse();
+    println!("Args: {:#?}", args);
 
-    // match frontend {
-    //     Ok(_) => println!("✅ Frontend server started on http://localhost:3000"),
-    //     Err(e) => eprintln!("❌ Failed to start frontend server: {}", e),
-    // }
+    // Start frontend
+    let frontend = Command::new("npm")
+        .arg("start")
+        .current_dir("frontend")
+        .spawn();
+
+    match frontend {
+        Ok(_) => println!("✅ Frontend server started on http://localhost:3000"),
+        Err(e) => eprintln!("❌ Failed to start frontend server: {}", e),
+    }
 
     // Initialize the Iroh node
-    let iroh_node: IrohNode = setup_iroh_node().await?;
+    let iroh_node: IrohNode = setup_iroh_node(args).await?;
 
     println!("Iroh node started!");
     println!("Your NodeId: {}", iroh_node.node_id);
@@ -59,7 +66,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         blobs: iroh_node.blobs.clone(),
     };
 
-    // // Test scenario 1: Basic Document Lifecycle(covers create_doc, add_doc_schema, set_entry, get_entry, get_entries, delete_entry)
+    // // // Test scenario 1: Basic Document Lifecycle(covers create_doc, add_doc_schema, set_entry, get_entry, get_entries, delete_entry)
 
     // let doc_id = create_doc(state.docs.clone()).await?;
     // println!("Document created with ID: {:?}", doc_id);
@@ -225,7 +232,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // sleep(Duration::from_secs(3)).await;
 
-    // // expect 3 blobs
+    // // // expect 3 blobs
     // let blobs = list_blobs(state.blobs.clone(), 0, 10).await?;
     // println!("List of blobs {} blobs found: ", blobs.len());
     // for blob in blobs {
@@ -441,47 +448,47 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // ).await?;
     // println!("Document joined with ID: {:?}", doc_id);
 
-    // Test scenario 8: Authors(covers list_authors, get_default_author, set_default_author, create_author, delete_author, verify_author)
-    // let authors = list_authors(state.docs.clone()).await?;
-    // for author in authors {
-    //     println!("Initial authors: {:?}", author);
-    // }
-    // println!("\n");
+//     // Test scenario 8: Authors(covers list_authors, get_default_author, set_default_author, create_author, delete_author, verify_author)
+//     let authors = list_authors(state.docs.clone()).await?;
+//     for author in authors {
+//         println!("Initial authors: {:?}", author);
+//     }
+//     println!("\n");
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
-    // let new_author_1 = create_author(state.docs.clone()).await?;
-    // println!("New author created: {:?}", new_author_1);
+//     let new_author_1 = create_author(state.docs.clone()).await?;
+//     println!("New author created: {:?}", new_author_1);
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
-    // let authors = list_authors(state.docs.clone()).await?;
-    // for author in authors {
-    //     println!("Authors after adding a new author: {:?}", author);
-    // }
-    // println!("\n");
+//     let authors = list_authors(state.docs.clone()).await?;
+//     for author in authors {
+//         println!("Authors after adding a new author: {:?}", author);
+//     }
+//     println!("\n");
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
-    // set_default_author(state.docs.clone(), new_author_1.to_string()).await?;
-    // println!("Default author set: {:?}", new_author_1);
+//     set_default_author(state.docs.clone(), new_author_1.to_string()).await?;
+//     println!("Default author set: {:?}", new_author_1);
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
-    // let default_author = get_default_author(state.docs.clone()).await?;
-    // println!("Default author: {:?}", default_author);
+//     let default_author = get_default_author(state.docs.clone()).await?;
+//     println!("Default author: {:?}", default_author);
 
-    // sleep(Duration::from_secs(3)).await;    
+//     sleep(Duration::from_secs(3)).await;    
 
-    // let new_author_2 = create_author(state.docs.clone()).await?;
-    // println!("New author created: {:?}", new_author_2);
+//     let new_author_2 = create_author(state.docs.clone()).await?;
+//     println!("New author created: {:?}", new_author_2);
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
-    // let new_author_3 = create_author(state.docs.clone()).await?;
-    // println!("New author created: {:?}", new_author_3);
+//     let new_author_3 = create_author(state.docs.clone()).await?;
+//     println!("New author created: {:?}", new_author_3);
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
 //     let authors = list_authors(state.docs.clone()).await?;
 //     for author in authors {
@@ -496,16 +503,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 //     sleep(Duration::from_secs(3)).await;
 
-    // let authors = list_authors(state.docs.clone()).await?;
-    // for author in authors {
-    //     println!("Authors list after deletion: {:?}", author);
-    // }
-    // println!("\n");
+//     let authors = list_authors(state.docs.clone()).await?;
+//     for author in authors {
+//         println!("Authors list after deletion: {:?}", author);
+//     }
+//     println!("\n");
 
-    // sleep(Duration::from_secs(3)).await;
+//     sleep(Duration::from_secs(3)).await;
 
-    // let verify_author = verify_author(state.docs.clone(), new_author_2.to_string()).await?;
-    // println!("Author verified: {}", verify_author);
+//     let verify_author = verify_author(state.docs.clone(), new_author_2.to_string()).await?;
+//     println!("Author verified: {}", verify_author);
 
     let app = Router::new()
         .route("/create_registry", post(create_registry_handler))
