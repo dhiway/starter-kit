@@ -3,6 +3,10 @@ name = "dept-starter-kit-template"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "dept-starter-kit-template"
+path = "src/main.rs"
+
 [dependencies]
 iroh = "0.33.0"
 iroh-blobs = { version = "0.33.1", features = ["rpc"]}

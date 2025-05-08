@@ -1,17 +1,17 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-/// Command-line arguments for running the starter kit. 
-/// ```
-/// # Run with default in-memory and random secret
-/// cargo run
-///
-/// # Run with persistent path and generated secret
-/// cargo run -- --path ./iroh_data
+// Command-line arguments for running the starter kit. 
+// ```
+// Run with default in-memory and random secret
+// cargo run
+//
+// Run with persistent path and generated secret
+// cargo run -- --path ./iroh_data
 
-/// # Run with persistent path and custom secret key
-/// cargo run -- --path <path> --secret-key <your_secret_key>
-/// ```
+// # Run with persistent path and custom secret key
+// cargo run -- --path <path> --secret-key <your_secret_key>
+// ```
 #[derive(Parser, Debug)]
 #[command(name = "Starter Kit")]
 #[command(about = "A starter kit for data providers", long_about = None)]

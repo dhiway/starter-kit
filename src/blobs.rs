@@ -3,7 +3,8 @@ use iroh_blobs::{
     net_protocol::Blobs,
     rpc::client::blobs::{WrapOption, AddOutcome, BlobInfo, BlobStatus, DownloadOutcome, DownloadOptions},
     rpc::client::tags::TagInfo,
-    store::mem::Store,
+    // store::mem::Store,
+    store::fs::Store,
     util::{SetTagOption, Tag},
     store::{ExportFormat, ExportMode},
     Hash,
@@ -15,6 +16,7 @@ use futures::{StreamExt, TryStreamExt};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use std::str::FromStr;
+
 
 /// Adds raw bytes as a blob.
 /// 
@@ -403,3 +405,722 @@ pub async fn export_blob_to_file(
 
 // delete_blob
 // do we need this?
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::iroh_wrapper::{
+        setup_iroh_node,
+        IrohNode};
+    use crate::cli::CliArgs;
+    use anyhow::{anyhow, Result};
+    use tokio::fs::{self, File};
+    use tokio::io::AsyncWriteExt;
+    use tokio::time::{sleep, Duration};
+    use tokio::task::JoinHandle;    
+    use tempfile::tempdir;
+    use std::path::PathBuf;
+
+    pub async fn setup_node() -> Result<IrohNode> {
+        fs::create_dir_all("Test").await?;
+
+        let args = CliArgs {
+            path: Some(PathBuf::from("Test/test_blobs")),
+            secret_key: Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f2".to_string()), // remove this secret key
+        };
+        let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node"))
+        })?;
+        println!("Iroh node started!");
+        println!("Your NodeId: {}", iroh_node.node_id);
+        Ok(iroh_node)
+    }
+
+    // add_blob_bytes
+    #[tokio::test]
+    pub async fn test_add_blob_bytes() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        
+        let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        let output_string = get_blob(blobs, outcome.hash.to_string()).await?;
+        assert_eq!(output_string, "Unit test");
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // add_blob_named
+    #[tokio::test]
+    pub async fn test_add_blob_named() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        let tag_name = "test_tag";
+
+        let outcome = add_blob_named(blobs.clone(), bytes, tag_name).await?;
+        let output_string = get_blob(blobs, outcome.hash.to_string()).await?;
+        assert_eq!(output_string, "Unit test");
+        assert_eq!(outcome.tag, tag_name.into());
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // add_blob_from_path
+    #[tokio::test]
+    pub async fn test_add_blob_from_path() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        fs::create_dir_all("Test").await?;
+        let mut file = File::create("Test/dummy_blob_data.txt").await?;
+        file.write_all(b"This is a file with dummy blob data.").await?;
+
+        let outcome = add_blob_from_path(blobs.clone(), &PathBuf::from("Test/dummy_blob_data.txt")).await?;
+        let output_string = get_blob(blobs, outcome.hash.to_string()).await?;
+        assert_eq!(output_string, "This is a file with dummy blob data.");
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_file("Test/dummy_blob_data.txt").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_add_blob_from_path_fails_on_invalid_path() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_path = Path::new("non_existent_file.txt");
+
+        let result = add_blob_from_path(blobs, invalid_path).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(error_str.contains("Failed to canonicalize path"));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+
+    // list_blobs
+    #[tokio::test]
+    pub async fn test_list_blobs() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let page = 0;
+        let page_size = 10;
+
+        // Add some blobs for testing
+        let bytes_1 = Bytes::from("Blob data 1");
+        let outcome_1 = add_blob_bytes(blobs.clone(), bytes_1).await?;
+        
+        let bytes_2 = Bytes::from("Blob data 2");
+        let outcome_2 = add_blob_bytes(blobs.clone(), bytes_2).await?;
+
+        // List blobs
+        let blobs_list = list_blobs(blobs.clone(), page, page_size).await?;
+        assert_eq!(blobs_list.len(), 2);
+        assert_eq!(blobs_list[0].hash, outcome_1.hash);
+        assert_eq!(blobs_list[1].hash, outcome_2.hash);
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_list_blobs_fails_on_invalid_stream() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        // Insert some blob so list has something to work with (optional)
+        let _ = add_blob_bytes(blobs.clone(), Bytes::from("Sample data")).await?;
+
+        // Drop the router to simulate client failure (stream will break)
+        iroh_node.router.shutdown().await?;
+
+        let result = list_blobs(blobs.clone(), 0, 10).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(
+            error_str.contains("Failed to collect blobs from stream"),
+            "Unexpected error: {}",
+            error_str
+        );
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // get_blob
+    #[tokio::test]
+    pub async fn test_get_blob() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        
+        let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        let output_string = get_blob(blobs, outcome.hash.to_string()).await?;
+        assert_eq!(output_string, "Unit test");
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_blob_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "invalid-hash-value".to_string();
+
+        let result = get_blob(blobs, invalid_hash.clone()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(error_str.contains(&format!("Failed to parse hash: {}", invalid_hash)));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_blob_returns_base64_on_invalid_utf8() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        // Add non-UTF8 binary data
+        let non_utf8_bytes = Bytes::from(vec![0xff, 0xfe, 0xfd, 0xfc]);
+        let add_outcome = add_blob_bytes(blobs.clone(), non_utf8_bytes.clone()).await?;
+        let hash_str = add_outcome.hash.to_string();
+
+        let result = get_blob(blobs.clone(), hash_str).await?;
+
+        // This should NOT be UTF-8 decodable and should return base64
+        let expected_base64 = base64::engine::general_purpose::STANDARD.encode(non_utf8_bytes);
+        assert_eq!(result, expected_base64);
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // status_blob
+    #[tokio::test]
+    pub async fn test_status_blob() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Complete test");
+        
+        let outcome_complete = add_blob_bytes(blobs.clone(), bytes).await?;
+        let blob_status = status_blob(blobs.clone(), outcome_complete.hash.to_string()).await?;
+        assert_eq!(blob_status, "Complete");
+
+        // replacing last 8 characters of the hash with 'notfound' to generate incorrect hash
+        let fake_hash = Hash::from_bytes([1u8; 32]);
+        let blob_status = status_blob(blobs.clone(), fake_hash.to_string()).await?;
+        assert_eq!(blob_status, "NotFound");
+
+        // try to simulate Partial status
+        // NOTE: we are trying to spin up second node, hence change the path and the secret key form node 1.
+        let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
+        let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
+        let args = CliArgs {
+            path: path_2.clone(),
+            secret_key: secret_key_2,
+        };
+        let iroh_node_2: IrohNode = setup_iroh_node(args).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node"))
+        })?;
+
+        let dir = tempdir()?;
+        let file_path = dir.path().join("large_file.txt");
+        let mut file = File::create(&file_path).await?;
+        let data = vec![0u8; 100 * 1024 * 1024]; // 100MB of zeros(A rather large file)
+        file.write_all(&data).await?;
+
+        let outcome = add_blob_from_path(iroh_node_2.blobs.clone(), &file_path).await?;
+
+        let blobs_clone = blobs.clone();
+        let download_handle: JoinHandle<anyhow::Result<DownloadOutcome>> = tokio::spawn(async move {
+            download_blob(blobs_clone, outcome.hash.clone().to_string(), iroh_node_2.node_id.clone().to_string()).await
+        });
+        sleep(Duration::from_secs(2)).await;
+        download_handle.abort();
+
+        let blob_status = status_blob(blobs.clone(), outcome.hash.clone().to_string()).await?;
+        assert_eq!(blob_status, "Partial");
+
+        fs::remove_dir_all(dir).await?;
+        fs::remove_dir_all("Test/test_blobs").await?;
+        if let Some(path_to_remove) = path_2 {
+            fs::remove_dir_all(path_to_remove).await?;
+        }
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        iroh_node_2.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_status_blob_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "invalid-hash".to_string();
+
+        let result = status_blob(blobs, invalid_hash.clone()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(error_str.contains(&format!("Failed to parse hash: {}", invalid_hash)));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+
+    // has_blob
+    #[tokio::test]
+    pub async fn test_has_blob() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        
+        let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        let blob_exists = has_blob(blobs.clone(), outcome.hash.to_string()).await?;
+        assert_eq!(blob_exists, true);
+
+        let fake_hash = Hash::from_bytes([1u8; 32]);
+        let blob_exists = has_blob(blobs, fake_hash.to_string()).await?;
+        assert_eq!(blob_exists, false);
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_has_blob_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "invalid-hash-value".to_string();
+
+        let result = has_blob(blobs, invalid_hash.clone()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(error_str.contains(&format!("Failed to parse hash: {}", invalid_hash)));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // download_blob
+    #[tokio::test]
+    pub async fn test_download_blob() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        
+        let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        let node_id = iroh_node.node_id.clone().to_string();
+        
+        // Simulate a different node ID for download
+        let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
+        let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
+        let args = CliArgs {
+            path: path_2.clone(),
+            secret_key: secret_key_2,
+        };
+        let iroh_node_2: IrohNode = setup_iroh_node(args).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node"))
+        })?;
+        
+        let _ = download_blob(iroh_node_2.blobs.clone(), outcome.hash.to_string(), node_id).await?;
+        let get_blob = get_blob(iroh_node_2.blobs.clone(), outcome.hash.to_string()).await?;
+        assert_eq!(get_blob, "Unit test");
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        if let Some(path_to_remove) = path_2 {
+            fs::remove_dir_all(path_to_remove).await?;
+        }
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        iroh_node_2.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_download_blob_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "bad-hash";
+        let valid_node_id = iroh_node.node_id.to_string();
+
+        let result = download_blob(blobs, invalid_hash.to_string(), valid_node_id).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(
+            error_str.contains("Failed to parse hash"),
+            "Expected hash parsing error, got: {}",
+            error_str
+        );
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_download_blob_fails_on_invalid_node_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        // Add a valid blob
+        let blob_bytes = Bytes::from("sample");
+        let add_outcome = add_blob_bytes(blobs.clone(), blob_bytes).await?;
+        let valid_hash = add_outcome.hash.to_string();
+
+        let invalid_node_id = "bad-node-id";
+
+        let result = download_blob(blobs, valid_hash, invalid_node_id.to_string()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(
+            error_str.contains("Failed to parse node ID"),
+            "Expected node ID parsing error, got: {}",
+            error_str
+        );
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // not sure why this doesn't work
+    // download_hash_sequence
+    // #[tokio::test]
+    // pub async fn test_download_hash_sequence() -> Result<()>{
+    //     let iroh_node = setup_node().await?;
+    //     let blobs = iroh_node.blobs.clone();
+    //     let bytes = Bytes::from("Unit test");
+
+    //     let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+    //     let node_id = iroh_node.node_id.clone().to_string();
+
+    //     sleep(Duration::from_secs(3)).await;
+
+    //     // call has_blob on iroh_node to ensure it is in place
+    //     let has_blob = has_blob(blobs.clone(), outcome.hash.to_string()).await?;
+    //     println!("Has blob: {:?}", has_blob);
+    //     assert_eq!(has_blob, true);
+
+    //     sleep(Duration::from_secs(3)).await;
+
+    //     let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
+    //     let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
+    //     let args = CliArgs {
+    //         path: path_2.clone(),
+    //         secret_key: secret_key_2,
+    //     };
+    //     let iroh_node_2: IrohNode = setup_iroh_node(args).await.or_else(|_| {
+    //         Err(anyhow!("Failed to set up Iroh node"))
+    //     })?;
+
+    //     sleep(Duration::from_secs(10)).await;
+
+    //     let download_outcome = download_hash_sequence(iroh_node_2.blobs.clone(), outcome.hash.to_string(), node_id).await?;
+    //     println!("Download outcome: {:?}", download_outcome);
+
+    //     Ok(())
+    // }
+
+    #[tokio::test]
+    pub async fn test_download_hash_sequence_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "bad-hash";
+        let valid_node_id = iroh_node.node_id.to_string();
+
+        let result = download_hash_sequence(blobs, invalid_hash.to_string(), valid_node_id).await;
+        let error_str = format!("{:?}", result.unwrap_err());
+
+        assert!(error_str.contains("Failed to parse hash sequence"));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_download_hash_sequence_fails_on_invalid_node_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let bytes = Bytes::from("test");
+        let blob_outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        let valid_hash = blob_outcome.hash.to_string();
+        let invalid_node_id = "not-a-node-id";
+
+        let result = download_hash_sequence(blobs, valid_hash, invalid_node_id.to_string()).await;
+        let error_str = format!("{:?}", result.unwrap_err());
+
+        assert!(error_str.contains("Failed to parse node ID"));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // download_with_options
+    #[tokio::test]
+    pub async fn test_download_with_options() -> Result<()> {
+        let iroh_node = setup_node().await?;
+
+        // setup node 2
+        let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
+        let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
+        let args_2 = CliArgs {
+            path: path_2.clone(),
+            secret_key: secret_key_2,
+        };
+        let iroh_node_2: IrohNode = setup_iroh_node(args_2).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node 2"))
+        })?;
+
+        let data = String::from("Blob data 2");
+        let bytes = Bytes::from(data.clone());  // clone ensures data stays alive
+        let outcome = add_blob_bytes(iroh_node_2.blobs.clone(), bytes).await?;
+
+        // setup node 3
+        let path_3 = Some(PathBuf::from("Test/test_blobs_2"));
+        let secret_key_3 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f4".to_string());
+        let args_3 = CliArgs {
+            path: path_3.clone(),
+            secret_key: secret_key_3,
+        };
+        let iroh_node_3: IrohNode = setup_iroh_node(args_3).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node 3"))
+        })?;
+
+        let download_options: DownloadOptions = DownloadOptions {
+            format: iroh_blobs::BlobFormat::Raw,
+            nodes: vec![
+                iroh::NodeAddr::from(iroh_node.node_id), 
+                iroh::NodeAddr::from(iroh_node_2.node_id)
+            ],
+            tag: SetTagOption::Auto,
+            mode: iroh_blobs::net_protocol::DownloadMode::Direct,
+        };
+
+        let download_outcome = download_with_options(iroh_node_3.blobs, outcome.hash.to_string(), download_options).await?;
+        println!("Download outcome: {:?}", download_outcome);
+        assert_eq!(download_outcome.downloaded_size, "Blob data 2".len() as u64); 
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test/test_blobs_1").await?;
+        fs::remove_dir_all("Test/test_blobs_2").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        iroh_node_2.router.shutdown().await?;
+        iroh_node_3.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_download_with_options_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "not-a-valid-hash".to_string();
+        let download_options: DownloadOptions = DownloadOptions {
+            format: iroh_blobs::BlobFormat::Raw,
+            nodes: vec![
+                iroh::NodeAddr::from(iroh_node.node_id)
+            ],
+            tag: SetTagOption::Auto,
+            mode: iroh_blobs::net_protocol::DownloadMode::Direct,
+        };
+
+        let result = download_with_options(blobs, invalid_hash.clone(), download_options).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(error_str.contains(&format!("Failed to parse hash with options: {}", invalid_hash)));
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // list_tags
+    #[tokio::test]
+    pub async fn test_list_tags() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let bytes_1 = Bytes::from("Unit test 1");
+        let tag_name_1 = "Tag 1";
+        let _ = add_blob_named(blobs.clone(), bytes_1, tag_name_1).await?;
+
+        let bytes_2 = Bytes::from("Unit test 2");
+        let tag_name_2 = "Tag 2";
+        let _ = add_blob_named(blobs.clone(), bytes_2, tag_name_2).await?;
+
+        let tags = list_tags(blobs).await?;
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0].name, tag_name_1.into());
+        assert_eq!(tags[1].name, tag_name_2.into());
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // #[tokio::test]
+    // pub async fn test_list_tags_fails_on_broken_stream() -> Result<()> {
+    //     let iroh_node = setup_node().await?;
+    //     let blobs = iroh_node.blobs.clone();
+
+    //     let bytes_1 = Bytes::from("Unit test 1");
+    //     let tag_name_1 = "Tag 1";
+    //     let _ = add_blob_named(blobs.clone(), bytes_1, tag_name_1).await?;
+
+    //     // Kill the node before consuming the stream
+    //     iroh_node.router.shutdown().await?;
+
+    //     sleep(Duration::from_millis(500)).await;
+
+    //     let result = list_tags(blobs.clone()).await;
+    //     let error_str = format!("{:?}", result.unwrap_err());
+
+    //     assert!(
+    //         error_str.contains("Failed to collect tags from stream"),
+    //         "Expected tag collection failure, got: {}",
+    //         error_str
+    //     );
+
+    //     Ok(())
+    // }
+
+
+    // delete_tag
+    #[tokio::test]
+    pub async fn test_delete_tag() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let bytes_1 = Bytes::from("Unit test 1");
+        let tag_name_1 = "Tag 1";
+        let _ = add_blob_named(blobs.clone(), bytes_1, tag_name_1).await?;
+
+        let tags = list_tags(blobs.clone()).await?;
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].name, tag_name_1.into());
+
+        delete_tag(blobs.clone(), tag_name_1).await?;
+        let tags_after_delete = list_tags(blobs).await?;
+        assert_eq!(tags_after_delete.len(), 0);
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }    
+
+    // export_blob_to_file
+    #[tokio::test]
+    pub async fn test_export_blob_to_file() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        
+        let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        let destination = std::fs::canonicalize(".")?.join("retrieved.txt");
+        
+        export_blob_to_file(blobs.clone(), outcome.hash.to_string(), destination.clone()).await?;
+
+        // Check if the file exists and has the expected content
+        let content = fs::read_to_string(destination).await?;
+        assert_eq!(content, "Unit test");
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        fs::remove_file("retrieved.txt").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_export_blob_to_file_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+        let bytes = Bytes::from("Unit test");
+        
+        let _ = add_blob_bytes(blobs.clone(), bytes).await?;
+        let destination = std::fs::canonicalize(".")?.join("retrieved.txt");
+
+        let invalid_hash = "this is not a valid hash".to_string();
+        
+        let result = export_blob_to_file(blobs.clone(), invalid_hash, destination.clone()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+
+        assert!(error_str.contains("Failed to parse hash for export: this is not a valid hash"));
+
+        // Clean up
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+}

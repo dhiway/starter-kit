@@ -1,22 +1,18 @@
 use iroh_blobs::net_protocol::Blobs;
-use iroh_blobs::{get, Hash};
+use iroh_blobs::Hash;
 use iroh_docs::protocol::Docs;
-use iroh_blobs::store::mem::Store as BlobStore;
+// use iroh_blobs::store::mem::Store as BlobStore;
+use iroh_blobs::store::fs::Store as BlobStore;
 use iroh_docs::rpc::AddrInfoOptions;
-use iroh_docs::{AuthorId, CapabilityKind, DocTicket, NamespaceId};
-use iroh_docs::rpc::client::docs::{Doc, MemClient, ShareMode};
-use iroh_docs::rpc::proto::RpcService as DocsRpcService;
-use jsonschema::draft201909::meta::validate;
+use iroh_docs::{CapabilityKind, DocTicket, NamespaceId};
+use iroh_docs::rpc::client::docs::{Doc, ShareMode};
 use jsonschema::validator_for;
-// use quic_rpc::client::FlumeConnector;
-// iroh_docs::rpc::client::docs::MemClient;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use serde_json::Value;
 use bytes::Bytes;
 use quic_rpc::transport::Connector;
-// use quic_rpc::client::BoxedConnector;
 
 /// Save a BTreeMap<String, Value> as a new document in iroh-docs.
 pub async fn save_as_doc(
@@ -312,12 +308,12 @@ pub async fn join_doc(
 
     let doc_client = docs.client();
 
-    let (doc_id, _) = doc_client
+    let (doc, _) = doc_client
         .import_and_subscribe(doc_ticket)
         .await
         .with_context(|| "Failed to join document")?;
 
-    Ok(doc_id.id().to_string())
+    Ok(doc.id().to_string())
 }
 
 /// Closes an open document.
@@ -942,3 +938,1456 @@ pub async fn set_download_policy(
 
 // update_doc_schema
 // do we need this? 
+
+
+mod Tests {
+    use super::*;
+    use crate::iroh_wrapper::{IrohNode, setup_iroh_node};
+    use crate::cli::CliArgs;
+    use crate::authors::create_author;
+    use anyhow::{Result, anyhow};
+    use tokio::fs::{self, File};
+    use std::path::PathBuf;
+    use tokio::time::{sleep, Duration};
+    use std::env;
+    use tokio::io::AsyncWriteExt;
+
+    pub async fn setup_node() -> Result<IrohNode> {
+        fs::create_dir_all("Test").await?;
+
+        let args = CliArgs {
+            path: Some(PathBuf::from("Test/test_blobs")),
+            secret_key: Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f2".to_string()), // remove this secret key
+        };
+        let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node"))
+        })?;
+        println!("Iroh node started!");
+        println!("Your NodeId: {}", iroh_node.node_id);
+        Ok(iroh_node)
+    }
+
+    pub async fn delete_all_docs(
+        docs: Arc<Docs<BlobStore>>,
+    ) -> Result<()> {
+        let docs_list = list_docs(docs.clone()).await?;
+        for (doc_id, _) in docs_list {
+            let docs_clone = docs.clone(); // Clone docs again here
+            drop_doc(docs_clone, doc_id.clone())
+                .await
+                .with_context(|| format!("Failed to drop document {doc_id}"))?;
+        }
+
+        Ok(())
+    }
+
+    // create_doc
+    #[tokio::test]
+    pub async fn test_create_doc() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let list = list_docs(docs.clone()).await?;
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].0, doc_id);
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // list_docs
+    #[tokio::test]
+    pub async fn test_list_docs() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_1 = create_doc(docs.clone()).await?;
+        println!("Document ID: {doc_1}");
+        sleep(Duration::from_secs(2)).await;
+        let doc_2 = create_doc(docs.clone()).await?;
+        println!("Document ID: {doc_2}");
+
+        let list = list_docs(docs.clone()).await?;
+        println!("Document list: {:?}", list);
+        assert_eq!(list.len(), 2);
+        
+        let doc_1_in_list = list.iter().any(|(id, _)| id == &doc_1);
+        let doc_2_in_list = list.iter().any(|(id, _)| id == &doc_2);
+        assert!(doc_1_in_list);
+        assert!(doc_2_in_list);
+
+        assert!(matches!(list[0].1, CapabilityKind::Write));
+        assert!(matches!(list[1].1, CapabilityKind::Write));
+        println!("Document list: {:?}", list);
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // get_document
+    #[tokio::test]
+    pub async fn test_get_document() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let namespace_id_vec = decode_doc_id(&doc_id)
+        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        let namespace_id = NamespaceId::from(namespace_id_vec);
+
+        let doc = get_document(docs.clone(), namespace_id).await?;
+
+        assert_eq!(doc.id(), namespace_id);
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // drop_doc
+    #[tokio::test]
+    pub async fn test_drop_doc() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_id = create_doc(docs.clone()).await?;
+        let list_before = list_docs(docs.clone()).await?;
+        assert_eq!(list_before.len(), 1);
+
+        drop_doc(docs.clone(), doc_id.clone()).await?;
+        let list_after = list_docs(docs.clone()).await?;
+        assert_eq!(list_after.len(), 0);
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_drop_doc_invalid_doc_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let invalid_doc_id = "not-a-valid-doc-id";
+
+        let result = drop_doc(docs.clone(), invalid_doc_id.to_string()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(
+            error_str.contains("Failed to decode document ID"),
+            "Expected decode error, got: {}",
+            error_str
+        );
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // share_doc and join_doc
+    #[tokio::test]
+    pub async fn test_share_doc() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let ticket = share_doc(
+            docs.clone(),
+            doc_id.clone(),
+            ShareMode::Read,
+            AddrInfoOptions::Addresses,
+        ).await?;
+
+        let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
+        let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
+        let args = CliArgs {
+            path: path_2.clone(),
+            secret_key: secret_key_2,
+        };
+        let iroh_node_2: IrohNode = setup_iroh_node(args).await.or_else(|_| {
+            Err(anyhow!("Failed to set up Iroh node"))
+        })?;
+
+        let _ = join_doc(iroh_node_2.docs.clone(), ticket).await?;
+
+        let list_of_docs_1 = list_docs(docs.clone()).await?;
+        let list_of_docs_2 = list_docs(iroh_node_2.docs.clone()).await?;
+
+        assert_eq!(list_of_docs_1.len(), 1);
+        assert_eq!(list_of_docs_2.len(), 1);
+        assert_eq!(list_of_docs_1[0].0, doc_id);
+        assert_eq!(list_of_docs_2[0].0, doc_id);
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        delete_all_docs(iroh_node_2.docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        iroh_node_2.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_share_doc_fails_on_invalid_doc_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let invalid_doc_id = "not-a-valid-doc-id";
+
+        let result = share_doc(
+            docs.clone(),
+            invalid_doc_id.to_string(),
+            ShareMode::Read,
+            AddrInfoOptions::Addresses,
+        ).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(
+            error_str.contains("Failed to decode document ID"),
+            "Expected decode error, got: {}",
+            error_str
+        );
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_join_doc_fails_on_invalid_ticket() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let invalid_ticket = "not-a-valid-ticket";
+
+        let result = join_doc(docs.clone(), invalid_ticket.to_string()).await;
+
+        let error_str = format!("{:?}", result.unwrap_err());
+        assert!(
+            error_str.contains("Failed to parse document ticket"),
+            "Expected decode error, got: {}",
+            error_str
+        );
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // close_doc
+    // #[tokio::test]
+    // pub async fn test_close_document() -> Result<()> {
+    //     let iroh_node = setup_node().await?;
+    //     let docs = iroh_node.docs.clone();
+
+    //     let doc_id = create_doc(docs.clone()).await?;
+
+    //     sleep(Duration::from_secs(3)).await;
+
+    //     let namespace_id_vec = decode_doc_id(&doc_id)
+    //     .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+    //     let namespace_id = NamespaceId::from(namespace_id_vec);
+
+    //     let result = get_document(docs.clone(), namespace_id.clone()).await;
+    //     println!("result: {:?}", result);
+        
+    //     close_doc(docs.clone(), doc_id.clone()).await?;
+
+    //     sleep(Duration::from_secs(3)).await;
+
+    //     let result = get_document(docs.clone(), namespace_id.clone()).await;
+    //     println!("result: {:?}", result);
+
+    //     // cleanup
+    //     delete_all_docs(docs).await?;
+    //     fs::remove_dir_all("Test").await?;
+    //     iroh_node.router.shutdown().await?;
+
+    //     Ok(())
+    // }
+
+    // add_doc_schema
+    #[tokio::test]
+    pub async fn test_add_doc_schema_fails_on_invalid_doc_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let result = add_doc_schema(
+            docs.clone(),
+            author,
+            "not-a-valid-doc-id".into(),
+            "{}".into(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_add_doc_schema_fails_on_not_being_able_to_serialize_schema_to_json() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = add_doc_schema(
+            docs.clone(),
+            author,
+            doc_id.clone(),
+            "this is not valid json".into(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to serialize schema to JSON"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_add_doc_schema_fails_on_not_being_able_to_validate_schema() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let invalid_schema = r#"
+            "this should be an object, not a string"
+        "#;
+
+
+        let result = add_doc_schema(
+            docs.clone(),
+            author,
+            doc_id.clone(),
+            invalid_schema.into(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate schema"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_add_doc_schema_fails_on_invalid_author_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let valid_schema = r#"{
+            "type": "object",
+            "properties": {
+              "owner": { "type": "string" }
+            }
+        }"#;
+
+        let result = add_doc_schema(
+            docs.clone(),
+            "not-a-valid-author-id".into(),
+            doc_id.clone(),
+            valid_schema.into(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_add_doc_schema_fails_when_document_already_has_entry() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let _ = set_entry(docs.clone(), blobs.clone(), doc_id.clone(), author.clone(), "key".to_string(), "value".to_string()).await?;
+        sleep(Duration::from_secs(3)).await;
+
+        let valid_schema = r#"{
+            "type": "object",
+            "properties": {
+              "owner": { "type": "string" }
+            }
+        }"#;
+
+        let result = add_doc_schema(
+            docs.clone(),
+            author,
+            doc_id.clone(),
+            valid_schema.into(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Document already contains entries. Schema can only be added to an empty document."));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_add_doc_schema() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let valid_schema = r#"{
+            "type": "object",
+            "properties": {
+              "owner": { "type": "string" },
+              "name": { "type": "string" },
+              "number_of_entries": { "type": "integer" },
+              "terms_and_conditions": { "type": "string" }
+            },
+            "required": ["owner", "name", "number_of_entries", "terms_and_conditions"]
+        }"#;
+
+        let result = add_doc_schema(
+            docs.clone(),
+            author.clone(),
+            doc_id.clone(),
+            valid_schema.into(),
+        ).await;
+
+        assert!(result.is_ok());
+
+        let hash = result.unwrap();
+        assert!(!hash.is_empty());
+
+        let schema_entry = get_entry(docs.clone(), doc_id.clone(), author.clone(), "schema".to_string(), true).await?;
+        assert!(schema_entry.is_some());
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // set_entry
+    #[tokio::test]
+    pub async fn test_set_entry_fails_on_incorrect_namespace_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let result = set_entry(
+            docs.clone(),
+            blobs.clone(),
+            "not-a-valid-doc-id".into(),
+            author.clone(),
+            "key".to_string(),
+            "value".to_string(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_fails_on_incorrect_author_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let doc = create_doc(docs.clone()).await?;
+
+        let result = set_entry(
+            docs.clone(),
+            blobs.clone(),
+            doc.clone(),
+            "not-a-valid-author-id".into(),
+            "key".to_string(),
+            "value".to_string(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_fails_on_incorrect_key() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc = create_doc(docs.clone()).await?;
+
+        let result = set_entry(
+            docs.clone(),
+            blobs.clone(),
+            doc.clone(),
+            author.clone(),
+            "schema".to_string(), // can also use "some key"
+            "value".to_string(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+
+        // cleanup
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // not sure how to tes the two next functions as they ahve already been tested in add_doc_schema. How to regenrate it here? 
+    // #[tokio::test]
+    // pub async fn test_set_entry_fails_on_validating_schema_json() -> Result<()> {}
+
+    // #[tokio::test]
+    // pub async fn test_set_entry_fails_on_converting_json_to_schema() -> Result<()> {}
+
+    #[tokio::test]
+    pub async fn test_set_entry_fails_if_value_does_not_match_schema() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc = create_doc(docs.clone()).await?;
+
+        let namespace_id_vec = decode_doc_id(&doc)
+        .with_context(|| format!("Failed to decode document ID {doc}"))?;
+        let namespace_id = NamespaceId::from(namespace_id_vec);
+
+        let valid_schema = r#"{
+            "type": "object",
+            "properties": {
+                "owner": { "type": "string" },
+                "name": { "type": "string" },
+                "number_of_entries": { "type": "integer" },
+                "terms_and_conditions": { "type": "string" }
+            },
+            "required": ["owner", "name", "number_of_entries", "terms_and_conditions"]
+        }"#;
+
+        let add_schema_result = add_doc_schema(docs.clone(), author.clone(), doc.clone(), valid_schema.to_string()).await;
+        assert!(add_schema_result.is_ok());
+
+        let valid_entry = r#"{
+            "owner": "Dhiway",
+            "name": "Cyra",
+            "terms_and_conditions": "Agreed"
+        }"#; // missing number_of_entries
+
+        let set_entry_result = set_entry(
+            docs.clone(),
+            blobs.clone(),
+            doc.clone(),
+            author.clone(),
+            "entry".to_string(),
+            valid_entry.to_string(),
+        ).await;
+        assert!(set_entry_result.is_err());
+        assert!(format!("{:?}", set_entry_result.unwrap_err()).contains("Value does not match schema"));
+        
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc = create_doc(docs.clone()).await?;
+
+        let namespace_id_vec = decode_doc_id(&doc)
+        .with_context(|| format!("Failed to decode document ID {doc}"))?;
+        let namespace_id = NamespaceId::from(namespace_id_vec);
+
+        let valid_schema = r#"{
+            "type": "object",
+            "properties": {
+                "owner": { "type": "string" },
+                "name": { "type": "string" },
+                "number_of_entries": { "type": "integer" },
+                "terms_and_conditions": { "type": "string" }
+            },
+            "required": ["owner", "name", "number_of_entries", "terms_and_conditions"]
+        }"#;
+
+        let add_schema_result = add_doc_schema(docs.clone(), author.clone(), doc.clone(), valid_schema.to_string()).await;
+        assert!(add_schema_result.is_ok());
+
+        let valid_entry = r#"{
+            "owner": "Dhiway",
+            "name": "Cyra",
+            "number_of_entries": 3,
+            "terms_and_conditions": "Agreed"
+        }"#;
+
+        let set_entry_result = set_entry(
+            docs.clone(),
+            blobs.clone(),
+            doc.clone(),
+            author.clone(),
+            "entry".to_string(),
+            valid_entry.to_string(),
+        ).await;
+        assert!(set_entry_result.is_ok());
+
+        if let Some(fetch_entry) = get_entry(docs.clone(), doc.clone(), author.clone(), "entry".to_string(), true).await? {
+            assert_eq!(fetch_entry.namespace.doc, namespace_id.to_string());
+            assert_eq!(fetch_entry.namespace.key, "entry".to_string());
+            assert_eq!(fetch_entry.namespace.author, author.clone());
+            assert_eq!(fetch_entry.record.hash, set_entry_result.unwrap());
+        }
+        
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    // set_entry_file
+    #[tokio::test]
+    pub async fn test_set_entry_file_fails_on_incorrect_doc_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let result = set_entry_file(
+            docs.clone(), 
+            "not_a_valid_doc_id".to_string(), 
+            author.clone(), 
+            "entry".to_string(),
+            "path".to_string(),
+        ).await;
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_file_fails_on_incorrect_author_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = set_entry_file(
+            docs.clone(), 
+            doc_id.clone(), 
+            "not_a_valid_author_id".to_string(), 
+            "entry".to_string(),
+            "path".to_string(),
+        ).await;
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_file_fails_on_incorrect_key() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = set_entry_file(
+            docs.clone(), 
+            doc_id.clone(), 
+            author.clone(), 
+            "schema".to_string(), // can use 'some key' 
+            "path".to_string(),
+        ).await;
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+        
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_file_fails_on_non_existent_file_path() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = set_entry_file(
+            docs.clone(), 
+            doc_id.clone(), 
+            author.clone(), 
+            "entry".to_string(), // can use 'some key' 
+            "path".to_string(),
+        ).await;
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("File does not exist:"));
+        
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_file_fails_when_doc_already_has_schema() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("test_file.txt");
+        let mut file = File::create(&file_path).await?;
+        let data = "test data";
+        file.write_all(data.as_bytes()).await?;
+
+        let valid_schema = r#"{
+            "type": "object",
+            "properties": {
+                "owner": { "type": "string" },
+                "name": { "type": "string" },
+                "number_of_entries": { "type": "integer" },
+                "terms_and_conditions": { "type": "string" }
+            },
+            "required": ["owner", "name", "number_of_entries", "terms_and_conditions"]
+        }"#;
+
+        let add_schema_result = add_doc_schema(docs.clone(), author.clone(), doc_id.clone(), valid_schema.to_string()).await;
+        sleep(Duration::from_secs(1)).await;
+        println!("Schema add error: {:?}", add_schema_result);
+        assert!(add_schema_result.is_ok());
+
+        let result = set_entry_file(
+            docs.clone(), 
+            doc_id.clone(), 
+            author.clone(), 
+            "entry".to_string(), // can use 'some key' 
+            file_path.to_str().unwrap().to_string(),
+        ).await;
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("File import not allowed. Cannot add a file to a document with a schema."));
+
+        if file_path.exists() {
+            fs::remove_file(&file_path).await?;
+        }
+        assert!(!file_path.exists());
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_entry_file() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("test_file.txt");
+        let mut file = File::create(&file_path).await?;
+        let data = "test data";
+        file.write_all(data.as_bytes()).await?;
+
+        let result = set_entry_file(
+            docs.clone(), 
+            doc_id.clone(), 
+            author.clone(), 
+            "entry".to_string(), // can use 'some key' 
+            file_path.to_str().unwrap().to_string(),
+        ).await;
+        assert!(result.is_ok());
+        let entry_hash = result.unwrap().hash;
+
+        let retrieved_data = get_entry_blob(blobs.clone(), entry_hash).await?;
+        assert_eq!(retrieved_data, data);
+
+        Ok(())
+    }
+
+    // get_entry
+    #[tokio::test]
+    pub async fn test_get_entry_fails_on_incorrect_doc_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let author = create_author(docs.clone()).await?;
+
+        let result = get_entry(
+            docs.clone(),
+            "invalid-doc-id".to_string(),
+            author.clone(),
+            "key".to_string(),
+            false,
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entry_fails_on_incorrect_key() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+        let doc_id = create_doc(docs.clone()).await?;
+
+        // Use a key that will fail validation (e.g., empty string)
+        let result = get_entry(
+            docs.clone(),
+            doc_id.clone(),
+            author.clone(),
+            "".to_string(), // can not use 'some key'
+            false,
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entry_fails_on_incorrect_author_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = get_entry(
+            docs.clone(),
+            doc_id.clone(),
+            "invalid-author".to_string(),
+            "key".to_string(),
+            false,
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entry_returns_nothing_when_entry_does_not_exist() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let author = create_author(docs.clone()).await?;
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = get_entry(
+            docs.clone(),
+            doc_id.clone(),
+            author.clone(),
+            "nonexistent".to_string(),
+            false,
+        ).await?;
+
+        assert!(result.is_none());
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entry() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+
+        let author = create_author(docs.clone()).await?;
+        let doc_id = create_doc(docs.clone()).await?;
+        let key = "test_key".to_string();
+        let value = "test_value".to_string();
+
+        let namespace_id_vec = decode_doc_id(&doc_id)
+        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        let namespace_id = NamespaceId::from(namespace_id_vec);
+
+
+        let entry_hash = set_entry(docs.clone(), blobs.clone(), doc_id.clone(), author.clone(), key.clone(), value.clone()).await;
+        assert!(entry_hash.is_ok());
+
+        let result = get_entry(
+            docs.clone(),
+            doc_id.clone(),
+            author.clone(),
+            key.clone(),
+            true,
+        ).await?;
+
+        assert!(result.is_some());
+        let entry = result.unwrap();
+        assert_eq!(entry.namespace.doc, namespace_id.to_string());
+        assert_eq!(entry.namespace.key, key);
+        assert_eq!(entry.namespace.author, author);
+        assert_eq!(entry.record.hash, entry_hash.unwrap());
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // get_entry_blob
+    #[tokio::test]
+    pub async fn test_get_entry_blob_fails_on_invalid_hash() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let blobs = iroh_node.blobs.clone();
+
+        let invalid_hash = "this is not a valid hash".to_string();
+
+        let result = get_entry_blob(blobs.clone(), invalid_hash).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to parse hash"));
+
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // get_entries
+    #[tokio::test]
+    pub async fn test_get_entries_fails_on_invalid_document_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let query_params = serde_json::json!({
+            "author_id": "author",
+            "sort_by": "key",
+            "sort_direction": "ascending"
+        });
+
+        let result = get_entries(
+            docs.clone(),
+            "invalid-doc-id".to_string(),
+            query_params
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entries_fails_on_invalid_key() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+        let author = create_author(docs.clone()).await?;
+
+        let query_params = serde_json::json!({
+            "key": "some key",
+            "author_id": author,
+            "sort_by": "key",
+            "sort_direction": "ascending"
+        });
+
+        let result = get_entries(
+            docs.clone(),
+            doc_id,
+            query_params
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entries_fails_on_invalid_sort_by_value() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+        let author = create_author(docs.clone()).await?;
+
+        let query_params = serde_json::json!({
+            "key": "Key",
+            "author_id": author,
+            "sort_by": "OtherThanKeyAndAuthor",
+            "sort_direction": "ascending"
+        });
+
+        let result = get_entries(
+            docs.clone(),
+            doc_id,
+            query_params
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Invalid sort_by value:"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entries_fails_on_invalid_sort_direction_value() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+        let author = create_author(docs.clone()).await?;
+
+        let query_params = serde_json::json!({
+            "key": "Key",
+            "author_id": author,
+            "sort_by": "key",
+            "sort_direction": "OtherThanAscendingAndDescending"
+        });
+
+        let result = get_entries(
+            docs.clone(),
+            doc_id,
+            query_params
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Invalid sort_direction value:"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_get_entries() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+        let author = create_author(docs.clone()).await?;
+
+        let entr_1 = set_entry(docs.clone(), blobs.clone(), doc_id.clone(), author.clone(), "organisation_name".to_string(), "Test Org".to_string()).await?;
+        let entr_2 = set_entry(docs.clone(), blobs.clone(), doc_id.clone(), author.clone(), "organisation_address".to_string(), "Test Address".to_string()).await?;
+        let _ = set_entry(docs.clone(), blobs.clone(), doc_id.clone(), author.clone(), "CIN".to_string(), "00000".to_string()).await?;
+
+        let query_params = serde_json::json!({
+            "key_prefix": "org",
+            "limit": "10",
+            "sort_by": "key",
+            "sort_direction": "ascending"
+        });
+
+        let result = get_entries(
+            docs.clone(),
+            doc_id.clone(),
+            query_params
+        ).await;
+
+        let entries = result.unwrap();
+
+        // assert!(result.is_ok());
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].record.hash, entr_2); // 2 is first as the order is set to ascending
+        assert_eq!(entries[1].record.hash, entr_1);
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // delete_entry
+    #[tokio::test]
+    pub async fn test_delete_entry_fails_on_incorrect_document_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let author = create_author(docs.clone()).await?;
+
+        let result = delete_entry(
+            docs.clone(),
+            "incorrect_doc_id".to_string(),
+            author.clone(),
+            "Key".to_string(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_delete_entry_fails_on_incorrect_author_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let result = delete_entry(
+            docs.clone(),
+            doc_id.clone(),
+            "incorrect_author_id".to_string(),
+            "Key".to_string(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_delete_entry_fails_on_incorrect_key() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+        let author = create_author(docs.clone()).await?;
+
+        let result = delete_entry(
+            docs.clone(),
+            doc_id.clone(),
+            author.clone(),
+            "schema".to_string(), // can use 'some key'
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_delete_entry_fails_if_no_match_for_entry_found() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+        let author = create_author(docs.clone()).await?;
+
+        let result = delete_entry(
+            docs.clone(),
+            doc_id.clone(),
+            author.clone(),
+            "Key".to_string(),
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Entry not found for key"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_delete_entry() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let blobs = iroh_node.blobs.clone();
+        let author = create_author(docs.clone()).await?;
+        let doc = create_doc(docs.clone()).await?;
+
+        let entry = set_entry(
+            docs.clone(),
+            blobs.clone(),
+            doc.clone(),
+            author.clone(),
+            "Key".to_string(),
+            "Value".to_string(),
+        ).await;
+        assert!(entry.is_ok());
+
+        sleep(Duration::from_secs(2)).await;
+
+        let entry_before_deletion_option = get_entry(
+            docs.clone(),
+            doc.clone(),
+            author.clone(),
+            "Key".to_string(),
+            true
+        ).await?;
+        sleep(Duration::from_secs(2)).await;
+
+        let entry_before_deletion = entry_before_deletion_option.unwrap();
+        let hash = entry.unwrap();
+        assert_eq!(entry_before_deletion.record.hash, hash.clone());
+        assert_ne!(entry_before_deletion.record.len, 0);
+        
+        let delete_result = delete_entry(
+            docs.clone(),
+            doc.clone(),
+            author.clone(),
+            "Key".to_string(),
+        ).await;
+        assert!(delete_result.is_ok());
+
+        sleep(Duration::from_secs(2)).await;
+
+        let entry_after_deletion_option = get_entry(
+            docs.clone(),
+            doc.clone(),
+            author.clone(),
+            "Key".to_string(),
+            true
+        ).await?;
+        assert_eq!(entry_before_deletion.record.hash, hash);
+        assert_eq!(entry_after_deletion_option.unwrap().record.len, 0);
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    // leave
+    // not sure how to test
+
+    // status
+    // not sure how to test
+
+    // get_download_policy and set_download_policy
+    #[tokio::test]
+    pub async fn test_get_download_purpose_fails_on_incorrect_document_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        
+        let result = get_download_policy(
+            docs.clone(), 
+            "incorrect_doc_id".to_string()
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_download_purpose_fails_on_incorrect_document_id() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let download_policy = serde_json::json!({
+            "policy": "nothing_except",
+            "filters": []
+        });
+        
+        let result = set_download_policy(
+            docs.clone(), 
+            "incorrect_doc_id".to_string(),
+            download_policy
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_download_policy_fails_on_incorrect_download_policy_format() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let incorrect_download_policy = serde_json::json!({
+            "incorrect_key": "incorrect_value"
+        });
+        
+        let result = set_download_policy(
+            docs.clone(), 
+            doc_id.clone(),
+            incorrect_download_policy
+        ).await;
+
+        assert!(result.is_err());
+        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode download policy"));
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_set_and_get_download_policy() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+        let doc_id = create_doc(docs.clone()).await?;
+
+        let download_policy = serde_json::json!({
+            "policy": "nothing_except",
+            "filters": []
+        });
+        
+        let result = set_download_policy(
+            docs.clone(), 
+            doc_id.clone(),
+            download_policy.clone()
+        ).await;
+
+        assert!(result.is_ok());
+
+        sleep(Duration::from_secs(2)).await;
+
+        let result = get_download_policy(
+            docs.clone(), 
+            doc_id.clone()
+        ).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), download_policy);
+
+        delete_all_docs(docs).await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+}
