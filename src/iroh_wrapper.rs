@@ -16,15 +16,37 @@ pub struct IrohNode {
 }
 
 pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> {
-    let path = args.path.expect("Path is required");
+    // The user is first expected to create a secret key using ```cago run``` and then passing it as an argument
+    let (path, secret_key) = match (&args.path, &args.secret_key) {
+        (Some(path), Some(secret_key)) => {
+            let bytes = hex::decode(secret_key)
+                .map_err(|_| "Invalid hex format for secret key")?;
 
-    let bytes = match args.secret_key {
-        Some(ref secret_key) => hex::decode(secret_key)?,
-        None => return Err("Secret key is required".into()),
+            let bytes: [u8; 32] = bytes
+                .try_into()
+                .map_err(|_| "Invalid secret key length, must be 64 hex chars")?;
+
+            (path.clone(), SecretKey::from_bytes(&bytes))
+        }
+        (Some(_), None) => {
+            return Err("Secret key is required when path is provided".into());
+        }
+        (None, Some(_)) => {
+            return Err("Path is required when secret key is provided".into());
+        }
+        (None, None) => {
+            let mut rng = rand::rngs::OsRng;
+            let secret_key = SecretKey::generate(&mut rng);
+
+            println!("Secret key: {}", secret_key);
+
+            println!("🔑 Generated new secret key: {secret_key}");
+            println!("👉 Please run again with:");
+            println!("   cargo run -- --path your-path-of-choice --secret-key {secret_key}");
+
+            return Err("Path and secret key are required".into());
+        }
     };
-    let bytes: [u8; 32] = bytes.try_into().expect("Invalid secret key length");
-    let secret_key = SecretKey::from_bytes(&bytes);
-    println!("Secret key: {}", secret_key);
 
     let endpoint = Endpoint::builder()
         .secret_key(secret_key)
