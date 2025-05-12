@@ -1,5 +1,9 @@
 use iroh::{Endpoint, RelayMode, SecretKey, protocol::Router};
 use std::error::Error;
+use std::path::PathBuf;
+use std::fs;
+use tokio::fs as tokio_fs;
+use tokio::io::AsyncWriteExt;
 use iroh_blobs::net_protocol::Blobs;
 use iroh_blobs::store::fs::Store as blob_store_fs;
 use iroh_gossip::net::Gossip;
@@ -26,6 +30,20 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
                 .try_into()
                 .map_err(|_| "Invalid secret key length, must be 64 hex chars")?;
 
+            // Compute hash of the secret-key
+            let computed_hash = blake3::hash(&bytes).to_hex().to_string();
+
+            // Check if directory and secret-key file exists
+            let mut secret_file_path = PathBuf::from(path);
+            secret_file_path.push("secret-key");
+            if secret_file_path.exists() {
+                let stored_hash = fs::read_to_string(&secret_file_path)
+                    .map_err(|_| "Failed to read existing secret-key file")?;
+                if stored_hash.trim() != computed_hash {
+                    return Err("❌ Provided secret key does not match the saved key for this path.".into());
+                }
+            }
+
             (path.clone(), SecretKey::from_bytes(&bytes))
         }
         (Some(_), None) => {
@@ -44,12 +62,12 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
             println!("👉 Please run again with:");
             println!("   cargo run -- --path your-path-of-choice --secret-key {secret_key}");
 
-            return Err("Path and secret key are required".into());
+            return Err("Rerun with --path and --secret-key".into());
         }
     };
 
     let endpoint = Endpoint::builder()
-        .secret_key(secret_key)
+        .secret_key(secret_key.clone())
         .relay_mode(RelayMode::Default)
         .discovery_n0()
         .bind()
@@ -61,7 +79,7 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
 
     let blobs = Blobs::persistent(path.clone()).await?.build(builder.endpoint());
     let gossip = Gossip::builder().spawn(builder.endpoint().clone()).await?;
-    let docs = Docs::persistent(path).spawn(&blobs, &gossip).await?;
+    let docs = Docs::persistent(path.clone()).spawn(&blobs, &gossip).await?;
     
     let router = Router::builder(endpoint.clone())
         .accept(iroh_blobs::ALPN, blobs.clone())
@@ -69,6 +87,17 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
         .accept(iroh_docs::ALPN, docs.clone())
         .spawn()
         .await?;
+
+    let mut secret_file_path = PathBuf::from(&path);
+    secret_file_path.push("secret-key");
+    if !secret_file_path.exists() {
+        let bytes = secret_key.to_bytes();
+        let hash = blake3::hash(&bytes).to_hex().to_string();
+        let mut file = tokio_fs::File::create(&secret_file_path).await?;
+        file.write_all(hash.as_bytes()).await?;
+        file.flush().await?;
+    }
+
 
     Ok(IrohNode {
         node_id,

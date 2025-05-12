@@ -32,3 +32,4 @@ data-encoding = "2.9.0"
 jsonschema = "0.30.0"
 sp-core = "36.1.0"
 clap = { version = "4.5", features = ["derive"] }
+blake3 = "1.8.2"
