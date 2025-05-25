@@ -24,4 +24,5 @@ pub mod node {
 
 pub mod API_handlers {
     pub mod blobs_handler;
+    pub mod authors_handler;
 }
