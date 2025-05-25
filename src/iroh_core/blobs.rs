@@ -409,10 +409,10 @@ pub async fn export_blob_to_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::iroh_wrapper::{
+    use crate::node::iroh_wrapper::{
         setup_iroh_node,
         IrohNode};
-    use crate::cli::CliArgs;
+    use crate::helpers::cli::CliArgs;
     use anyhow::{anyhow, Result};
     use tokio::fs::{self, File};
     use tokio::io::AsyncWriteExt;
@@ -420,13 +420,40 @@ mod tests {
     use tokio::task::JoinHandle;    
     use tempfile::tempdir;
     use std::path::PathBuf;
+    use tokio::process::Command;
+    use std::process::Stdio;
+
+    // Running tests will give any user understanding of how they should run the program in real life. 
+    // step 1 is to run ```cargo run``` and fetch 'secret-key' form it and paste it in setup_node function.
+    // step 2 is to run ```cargo run -- --path <path> --secret-key <your_secret_key>``` as this will create the data path and save the secret key in the data path. The test does this for user.
+    // step 3 is to actually run the tests, but running it with ```cargo test``` will not work as all the tests will run in parallel and they will not be able to share the resources. Hence run the tests using ````cargo test -- --test-threads=1```.
+    // If you wish to generate a lcov report, use ```cargo llvm-cov --html --tests -- --test-threads=1 --nocapture```.
+    // To view the lcov file in browser, use ```open target/llvm-cov/html/index.html```.
 
     pub async fn setup_node() -> Result<IrohNode> {
+        let secret_key = "cb9ce6327139d4d168ba753e4b12434f523221612fcabc600cdc57bba40c29de";
+
         fs::create_dir_all("Test").await?;
+
+        let mut child = Command::new("cargo")
+        .arg("run")
+        .arg("--")
+        .arg("--path")
+        .arg("Test/test_blobs")
+        .arg("--secret-key")
+        .arg(secret_key)
+        .stdout(Stdio::null()) // Silence output, or use `inherit()` for debug
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start cargo run");
+
+        sleep(Duration::from_secs(5)).await;
+
+        child.kill().await.ok();
 
         let args = CliArgs {
             path: Some(PathBuf::from("Test/test_blobs")),
-            secret_key: Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f2".to_string()), // remove this secret key
+            secret_key: Some(secret_key.to_string()), // remove this secret key
         };
         let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node"))
@@ -444,6 +471,7 @@ mod tests {
         let bytes = Bytes::from("Unit test");
         
         let outcome = add_blob_bytes(blobs.clone(), bytes).await?;
+        
         let output_string = get_blob(blobs, outcome.hash.to_string()).await?;
         assert_eq!(output_string, "Unit test");
 
@@ -953,7 +981,6 @@ mod tests {
         };
 
         let download_outcome = download_with_options(iroh_node_3.blobs, outcome.hash.to_string(), download_options).await?;
-        println!("Download outcome: {:?}", download_outcome);
         assert_eq!(download_outcome.downloaded_size, "Blob data 2".len() as u64); 
 
         // Clean up

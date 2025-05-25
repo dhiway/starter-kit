@@ -1,7 +1,9 @@
-use dept_starter_kit_template::iroh_wrapper::{setup_iroh_node, IrohNode};
-use dept_starter_kit_template::handlers::{create_registry_handler, get_all_registries_handler, archive_registry_handler, add_entry_handler, display_entry_handler, delete_entry_handler};
-use dept_starter_kit_template::state::AppState;
-use dept_starter_kit_template::cli::CliArgs;
+use dept_starter_kit_template::node::iroh_wrapper::{setup_iroh_node, IrohNode};
+use dept_starter_kit_template::helpers::state::AppState;
+use dept_starter_kit_template::helpers::cli::CliArgs;
+use dept_starter_kit_template::API_handlers::{
+    blobs_handler::{add_blob_bytes_handler, add_blob_named_handler, list_blobs_handler, add_blob_from_path_handler, get_blob_handler, status_blob_handler, has_blob_handler, download_blob_handler, download_hash_sequence_handler, download_with_options_handler, list_tags_handler, delete_tag_handler, export_blob_to_file_handler},
+};
 use tokio::signal;
 use std::error::Error;
 use std::process::Command;
@@ -17,16 +19,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize the Iroh node
     let iroh_node: IrohNode = setup_iroh_node(args).await?;
 
-    // Start frontend
-    let frontend = Command::new("npm")
-        .arg("start")
-        .current_dir("frontend")
-        .spawn();
+    // // Start frontend
+    // let frontend = Command::new("npm")
+    //     .arg("start")
+    //     .current_dir("frontend")
+    //     .spawn();
 
-    match frontend {
-        Ok(_) => println!("✅ Frontend server started on http://localhost:3000"),
-        Err(e) => eprintln!("❌ Failed to start frontend server: {}", e),
-    }
+    // match frontend {
+    //     Ok(_) => println!("✅ Frontend server started on http://localhost:3000"),
+    //     Err(e) => eprintln!("❌ Failed to start frontend server: {}", e),
+    // }
 
     println!("Iroh node started!");
     println!("Your NodeId: {}", iroh_node.node_id);
@@ -37,12 +39,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let app = Router::new()
-        .route("/create_registry", post(create_registry_handler))
-        .route("/all_registries", get(get_all_registries_handler))
-        .route("/archive", post(archive_registry_handler))
-        .route("/add_entry", post(add_entry_handler))
-        .route("/display_entries", post(display_entry_handler))
-        .route("/delete_entry", post(delete_entry_handler))
+        .route("/blobs/add-blob-bytes", post(add_blob_bytes_handler))
+        .route("/blobs/add-blob-named", post(add_blob_named_handler))
+        .route("/blobs/add-blob-from-path", post(add_blob_from_path_handler))
+        .route("/blobs/list-blobs", get(list_blobs_handler))
+        .route("/blobs/get-blob", get(get_blob_handler))
+        .route("/blobs/status-blob", get(status_blob_handler))
+        .route("/blobs/has-blob", get(has_blob_handler))
+        .route("/blobs/download-blob", get(download_blob_handler))
+        .route("/blobs/download-hash-sequence", get(download_hash_sequence_handler))
+        .route("/blobs/download-with-options", get(download_with_options_handler))
+        .route("/blobs/list-tags", get(list_tags_handler))
+        .route("/blobs/delete-tag", post(delete_tag_handler))
+        .route("/blobs/export-blob-to-file", post(export_blob_to_file_handler))
         .with_state(state)
         .layer(CorsLayer::very_permissive());
 

@@ -10,7 +10,7 @@ use iroh_gossip::net::Gossip;
 use iroh_docs::protocol::Docs;
 use std::sync::Arc;
 use iroh::PublicKey;
-use crate::cli::CliArgs;
+use crate::helpers::cli::CliArgs;
 
 pub struct IrohNode {
     pub node_id: PublicKey,
