@@ -13,123 +13,13 @@ use std::sync::Arc;
 use serde_json::Value;
 use bytes::Bytes;
 use quic_rpc::transport::Connector;
-
-/// Save a BTreeMap<String, Value> as a new document in iroh-docs.
-pub async fn save_as_doc(
-    docs: Arc<Docs<BlobStore>>,
-    json: BTreeMap<String, Value>,
-) -> Result<NamespaceId, Box<dyn std::error::Error>> {
-    let doc_client = docs.client();
-    let author_id = doc_client.authors().default().await?;
-    println!("author_id: {}", author_id);
-
-    let doc = doc_client
-        .create()
-        .await?;
-
-    for (key, value) in json {
-        let bytes = serde_json::to_vec(&value)?;
-        doc
-            .set_bytes(
-                author_id.clone(),
-                key.into_bytes(),
-                bytes,
-            )
-            .await?;
-    }
-
-    println!("Document saved with ID: {}", doc.id());
-    Ok(doc.id())
-}
-
-pub async fn fetch_doc_as_json(
-    docs: Arc<Docs<BlobStore>>,
-    blobs: Arc<Blobs<BlobStore>>,
-    doc_id: NamespaceId,
-    keys: Option<Vec<&str>>,
-) -> Result<BTreeMap<String, Value>, Box<dyn std::error::Error>> {
-    let doc_client = docs.client();
-
-    let Some(doc) = doc_client.open(doc_id).await? else {
-        return Err("Document not found".into());
-    };
-
-    let author = doc_client.authors().default().await?;
-    println!("authors: {:?}", author);
-
-    let blob_client = blobs.client();
-    let mut result_map = BTreeMap::new();
-    let keys = keys.unwrap_or_else(|| vec!["registry_name", "schema", "file", "archived"]);
-
-    for key in keys {
-        if let Some(entry) = doc.get_exact(author, key, false).await? {
-            let hash = entry.content_hash();
-
-            let read_to_bytes = blob_client
-                .read_to_bytes(hash)
-                .await?;
-            let decoded_str = std::str::from_utf8(&read_to_bytes)?;
-            let value: Value = serde_json::from_str(decoded_str).unwrap();
-            result_map.insert(key.to_string(), value);
-        }
-    }
-
-    let json_output = serde_json::to_string_pretty(&result_map)?;
-    println!("{}", json_output);
-
-    Ok(result_map)
-}
-
-pub async fn set_value(
-    docs: Arc<Docs<BlobStore>>,
-    doc_id: NamespaceId,
-    key: String,
-    value: Value
-) -> Result<Hash, Box<dyn std::error::Error>> {
-    let doc_client = docs.client();
-
-    let Some(doc) = doc_client.open(doc_id).await? else {
-        return Err("Document not found".into());
-    };
-
-    let author = doc_client.authors().default().await?;
-
-    let key_bytes = Bytes::from(key.clone());
-    let value_bytes = Bytes::from(serde_json::to_vec(&value)?);
-
-    let updated_hash = doc.set_bytes(
-        author,
-        key_bytes,
-        value_bytes,
-    ).await?;
-
-    Ok(updated_hash)
-}
-
-pub async fn delete_doc(
-    docs: Arc<Docs<BlobStore>>,
-    doc_id: NamespaceId
-) -> Result<(), Box<dyn std::error::Error>> {
-    let doc_client = docs.client();
-
-    let Some(_doc) = doc_client.open(doc_id).await? else {
-        return Err("Document not found".into());
-    };
-
-    doc_client.drop_doc(doc_id).await?;
-
-    Ok(())
-}
-
-/////////////////////////
-
 use quic_rpc::transport::flume::FlumeConnector;
 use iroh_docs::rpc::proto::{Request, Response};
 use anyhow::{Result, Context};
 use futures::TryStreamExt;
 use futures::StreamExt;
 use iroh_docs::store::{Query, SortBy, SortDirection};
-use crate::utils::{encode_doc_id, decode_doc_id, encode_key, decode_key, SS58AuthorId, ApiDownloadPolicy, validate_key};
+use crate::helpers::utils::{encode_doc_id, decode_doc_id, encode_key, decode_key, SS58AuthorId, ApiDownloadPolicy, validate_key};
 use std::str::FromStr;
 use serde::Serialize;
 use iroh_docs::actor::OpenState;
@@ -942,22 +832,49 @@ pub async fn set_download_policy(
 
 mod Tests {
     use super::*;
-    use crate::iroh_wrapper::{IrohNode, setup_iroh_node};
-    use crate::cli::CliArgs;
-    use crate::authors::create_author;
+    use crate::node::iroh_wrapper::{IrohNode, setup_iroh_node};
+    use crate::helpers::cli::CliArgs;
+    use crate::iroh_core::authors::create_author;
     use anyhow::{Result, anyhow};
     use tokio::fs::{self, File};
     use std::path::PathBuf;
     use tokio::time::{sleep, Duration};
     use std::env;
     use tokio::io::AsyncWriteExt;
+    use tokio::process::Command;
+    use std::process::Stdio;
+
+    // Running tests will give any user understanding of how they should run the program in real life. 
+    // step 1 is to run ```cargo run``` and fetch 'secret-key' form it and paste it in setup_node function.
+    // step 2 is to run ```cargo run -- --path <path> --secret-key <your_secret_key>``` as this will create the data path and save the secret key in the data path. The test does this for user.
+    // step 3 is to actually run the tests, but running it with ```cargo test``` will not work as all the tests will run in parallel and they will not be able to share the resources. Hence run the tests using ````cargo test -- --test-threads=1```.
+    // If you wish to generate a lcov report, use ```cargo llvm-cov --html --tests -- --test-threads=1 --nocapture```.
+    // To view the lcov file in browser, use ```open target/llvm-cov/html/index.html```.
 
     pub async fn setup_node() -> Result<IrohNode> {
+        let secret_key = "cb9ce6327139d4d168ba753e4b12434f523221612fcabc600cdc57bba40c29de";
+
         fs::create_dir_all("Test").await?;
+
+        let mut child = Command::new("cargo")
+        .arg("run")
+        .arg("--")
+        .arg("--path")
+        .arg("Test/test_blobs")
+        .arg("--secret-key")
+        .arg(secret_key)
+        .stdout(Stdio::null()) // Silence output, or use `inherit()` for debug
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start cargo run");
+
+        sleep(Duration::from_secs(5)).await;
+
+        child.kill().await.ok();
 
         let args = CliArgs {
             path: Some(PathBuf::from("Test/test_blobs")),
-            secret_key: Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f2".to_string()), // remove this secret key
+            secret_key: Some(secret_key.to_string()), // remove this secret key
         };
         let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node"))
@@ -1008,13 +925,10 @@ mod Tests {
         let docs = iroh_node.docs.clone();
 
         let doc_1 = create_doc(docs.clone()).await?;
-        println!("Document ID: {doc_1}");
         sleep(Duration::from_secs(2)).await;
         let doc_2 = create_doc(docs.clone()).await?;
-        println!("Document ID: {doc_2}");
 
         let list = list_docs(docs.clone()).await?;
-        println!("Document list: {:?}", list);
         assert_eq!(list.len(), 2);
         
         let doc_1_in_list = list.iter().any(|(id, _)| id == &doc_1);
@@ -1024,7 +938,6 @@ mod Tests {
 
         assert!(matches!(list[0].1, CapabilityKind::Write));
         assert!(matches!(list[1].1, CapabilityKind::Write));
-        println!("Document list: {:?}", list);
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1766,7 +1679,6 @@ mod Tests {
 
         let add_schema_result = add_doc_schema(docs.clone(), author.clone(), doc_id.clone(), valid_schema.to_string()).await;
         sleep(Duration::from_secs(1)).await;
-        println!("Schema add error: {:?}", add_schema_result);
         assert!(add_schema_result.is_ok());
 
         let result = set_entry_file(

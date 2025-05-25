@@ -4,7 +4,7 @@ use iroh_docs::{protocol::Docs, AuthorId};
 // use iroh_blobs::store::mem::Store as BlobStore;
 use iroh_blobs::store::fs::Store as BlobStore;
 use futures::TryStreamExt;
-use crate::utils::SS58AuthorId;
+use crate::helpers::utils::SS58AuthorId;
 
 // list the authors
 pub async fn list_authors(
@@ -119,22 +119,49 @@ pub async fn verify_author(
 
 mod tests {
     use super::*;
-    use crate::iroh_wrapper::{
+    use crate::node::iroh_wrapper::{
         setup_iroh_node,
         IrohNode};
-    use crate::cli::CliArgs;
+    use crate::helpers::cli::CliArgs;
     use anyhow::{anyhow, Result};
     use std::default;
     use std::path::PathBuf;
     use tokio::fs;
     use tokio::time::{sleep, Duration};
+    use tokio::process::Command;
+    use std::process::Stdio;
+
+    // Running tests will give any user understanding of how they should run the program in real life. 
+    // step 1 is to run ```cargo run``` and fetch 'secret-key' form it and paste it in setup_node function.
+    // step 2 is to run ```cargo run -- --path <path> --secret-key <your_secret_key>``` as this will create the data path and save the secret key in the data path. The test does this for user.
+    // step 3 is to actually run the tests, but running it with ```cargo test``` will not work as all the tests will run in parallel and they will not be able to share the resources. Hence run the tests using ````cargo test -- --test-threads=1```.
+    // If you wish to generate a lcov report, use ```cargo llvm-cov --html --tests -- --test-threads=1 --nocapture```.
+    // To view the lcov file in browser, use ```open target/llvm-cov/html/index.html```.
 
     pub async fn setup_node() -> Result<IrohNode> {
+        let secret_key = "cb9ce6327139d4d168ba753e4b12434f523221612fcabc600cdc57bba40c29de";
+
         fs::create_dir_all("Test").await?;
+
+        let mut child = Command::new("cargo")
+        .arg("run")
+        .arg("--")
+        .arg("--path")
+        .arg("Test/test_blobs")
+        .arg("--secret-key")
+        .arg(secret_key)
+        .stdout(Stdio::null()) // Silence output, or use `inherit()` for debug
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start cargo run");
+
+        sleep(Duration::from_secs(5)).await;
+
+        child.kill().await.ok();
 
         let args = CliArgs {
             path: Some(PathBuf::from("Test/test_blobs")),
-            secret_key: Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f2".to_string()), // remove this secret key
+            secret_key: Some(secret_key.to_string()), // remove this secret key
         };
         let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node"))
@@ -171,6 +198,7 @@ mod tests {
 
         delete_all_authors(docs).await?;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
@@ -195,6 +223,7 @@ mod tests {
 
         delete_all_authors(docs).await?;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
@@ -219,6 +248,7 @@ mod tests {
             error_str
         );
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
 
         Ok(())
@@ -238,6 +268,7 @@ mod tests {
 
         delete_all_authors(docs).await?;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
@@ -271,6 +302,7 @@ mod tests {
 
         delete_all_authors(docs).await?;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
@@ -297,6 +329,7 @@ mod tests {
         assert!(!authors.contains(&author_id));
         sleep(Duration::from_secs(1)).await;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
@@ -323,6 +356,7 @@ mod tests {
         assert!(!verified);
         sleep(Duration::from_secs(1)).await;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
@@ -358,6 +392,7 @@ mod tests {
         assert!(authors.contains(&default_author));
         sleep(Duration::from_secs(1)).await;
 
+        fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
 
