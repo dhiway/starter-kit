@@ -3,6 +3,7 @@ use dept_starter_kit_template::helpers::state::AppState;
 use dept_starter_kit_template::helpers::cli::CliArgs;
 use dept_starter_kit_template::API_handlers::{
     blobs_handler::{add_blob_bytes_handler, add_blob_named_handler, list_blobs_handler, add_blob_from_path_handler, get_blob_handler, status_blob_handler, has_blob_handler, download_blob_handler, download_hash_sequence_handler, download_with_options_handler, list_tags_handler, delete_tag_handler, export_blob_to_file_handler},
+    authors_handler::{list_authors_handler, get_default_author_handler, set_default_author_handler, create_author_handler, delete_author_handler, verify_author_handler},
 };
 use tokio::signal;
 use std::error::Error;
@@ -52,6 +53,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/blobs/list-tags", get(list_tags_handler))
         .route("/blobs/delete-tag", post(delete_tag_handler))
         .route("/blobs/export-blob-to-file", post(export_blob_to_file_handler))
+        .route("/authors/list-authors", get(list_authors_handler))
+        .route("/authors/get-default-author", get(get_default_author_handler))
+        .route("/authors/set-default-author", post(set_default_author_handler))
+        .route("/authors/create-author", post(create_author_handler))
+        .route("/authors/delete-author", post(delete_author_handler))
+        .route("/authors/verify-author", post(verify_author_handler))
         .with_state(state)
         .layer(CorsLayer::very_permissive());
 
