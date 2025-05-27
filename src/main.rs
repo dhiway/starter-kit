@@ -6,12 +6,15 @@ use dept_starter_kit_template::API_handlers::{
     authors_handler::{list_authors_handler, get_default_author_handler, set_default_author_handler, create_author_handler, delete_author_handler, verify_author_handler},
     docs_handler::{get_document_handler, get_entry_blob_handler, create_doc_handler, list_docs_handler, drop_doc_handler, share_doc_handler, join_doc_handler, close_doc_handler, add_doc_schema_handler, set_entry_handler, set_entry_file_handler, get_entry_handler, get_entries_handler, delete_entry_handler, leave_handler, status_handler, set_download_policy_handler, get_download_policy_handler},
 };
+use dept_starter_kit_template::router::create_router;
+use dept_starter_kit_template::helper::frontend::start_frontend;
 use tokio::signal;
 use std::error::Error;
 use std::process::Command;
 use axum::{routing::{get, post}, Router};
 use tower_http::cors::CorsLayer;
 use clap::Parser;
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -21,16 +24,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize the Iroh node
     let iroh_node: IrohNode = setup_iroh_node(args).await?;
 
-    // // Start frontend
-    // let frontend = Command::new("npm")
-    //     .arg("start")
-    //     .current_dir("frontend")
-    //     .spawn();
-
-    // match frontend {
-    //     Ok(_) => println!("✅ Frontend server started on http://localhost:3000"),
-    //     Err(e) => eprintln!("❌ Failed to start frontend server: {}", e),
-    // }
+    // Start frontend
+    start_frontend();
 
     println!("Iroh node started!");
     println!("Your NodeId: {}", iroh_node.node_id);
@@ -40,47 +35,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         docs: iroh_node.docs.clone(),
     };
 
-    let app = Router::new()
-        .route("/blobs/add-blob-bytes", post(add_blob_bytes_handler))
-        .route("/blobs/add-blob-named", post(add_blob_named_handler))
-        .route("/blobs/add-blob-from-path", post(add_blob_from_path_handler))
-        .route("/blobs/list-blobs", get(list_blobs_handler))
-        .route("/blobs/get-blob", get(get_blob_handler))
-        .route("/blobs/status-blob", get(status_blob_handler))
-        .route("/blobs/has-blob", get(has_blob_handler))
-        .route("/blobs/download-blob", get(download_blob_handler))
-        .route("/blobs/download-hash-sequence", get(download_hash_sequence_handler))
-        .route("/blobs/download-with-options", get(download_with_options_handler))
-        .route("/blobs/list-tags", get(list_tags_handler))
-        .route("/blobs/delete-tag", post(delete_tag_handler))
-        .route("/blobs/export-blob-to-file", post(export_blob_to_file_handler))
-        .route("/authors/list-authors", get(list_authors_handler))
-        .route("/authors/get-default-author", get(get_default_author_handler))
-        .route("/authors/set-default-author", post(set_default_author_handler))
-        .route("/authors/create-author", post(create_author_handler))
-        .route("/authors/delete-author", post(delete_author_handler))
-        .route("/authors/verify-author", post(verify_author_handler))
-        .route("/docs/get-document", post(get_document_handler))
-        .route("/docs/get-entry-blob", post(get_entry_blob_handler))
-        .route("/docs/create-document", post(create_doc_handler))
-        .route("/docs/list-docs", get(list_docs_handler))
-        .route("/docs/drop-doc", post(drop_doc_handler))
-        .route("/docs/share-doc", post(share_doc_handler))
-        .route("/docs/join-doc", post(join_doc_handler))
-        .route("/docs/close-doc", post(close_doc_handler))
-        .route("/docs/add-doc-schema", post(add_doc_schema_handler))
-        .route("/docs/set-entry", post(set_entry_handler))
-        .route("/docs/set-entry-file", post(set_entry_file_handler))
-        .route("/docs/get-entry", post(get_entry_handler))
-        .route("/docs/get-entries", post(get_entries_handler))
-        .route("/docs/delete-entry", post(delete_entry_handler))
-        .route("/docs/leave", post(leave_handler))
-        .route("/docs/status", get(status_handler))
-        .route("/docs/set-download-policy", post(set_download_policy_handler))
-        .route("/docs/get-download-policy", get(get_download_policy_handler))
-        .with_state(state)
-        .layer(CorsLayer::very_permissive());
-
+    let app = create_router(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:4000").await?;
     println!("Server started on http://localhost:4000");
 
