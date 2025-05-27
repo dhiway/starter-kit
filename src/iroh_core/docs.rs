@@ -461,22 +461,22 @@ pub async fn set_entry_file (
 /// - `Some(EntryDetails)` if entry exists, else `None`.
 #[derive(Serialize, Debug, Clone)]
 pub struct EntryDetails {
-    namespace: EntryIdDetails,
-    record: RecordDetails,
+    pub namespace: EntryIdDetails,
+    pub record: RecordDetails,
 }
 
 #[derive(Serialize, Debug, Clone)]
 pub struct EntryIdDetails {
-    doc: String,
-    key: String,
-    author: String,
+    pub doc: String,
+    pub key: String,
+    pub author: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RecordDetails {
-    hash: String,
-    len: u64,
-    timestamp: u64,
+    pub hash: String,
+    pub len: u64,
+    pub timestamp: u64,
 }
 
 pub async fn get_entry(
@@ -706,7 +706,7 @@ pub async fn delete_entry(
         .with_context(|| format!("Failed to get entry for document {namespace_id}"))?;
 
     if entry.is_none() {
-        return Err(anyhow::anyhow!("Entry not found for key {key}"));
+        return Err(anyhow::anyhow!("Entry not found for key '{key}'"));
     }
 
     let delete = doc
@@ -960,6 +960,9 @@ mod Tests {
         let namespace_id = NamespaceId::from(namespace_id_vec);
 
         let doc = get_document(docs.clone(), namespace_id).await?;
+        println!("Document: {:?}", doc);
+        println!("{:?}", doc.id());
+        println!("{}", doc.id().to_string());
 
         assert_eq!(doc.id(), namespace_id);
 
