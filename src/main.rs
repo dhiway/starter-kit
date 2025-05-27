@@ -36,6 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let app = create_router(state);
+
     let listener = tokio::net::TcpListener::bind("127.0.0.1:4000").await?;
     println!("Server started on http://localhost:4000");
 
