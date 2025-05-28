@@ -1,4 +1,4 @@
-use crate::iroh_core::blobs::{add_blob_bytes, add_blob_named, add_blob_from_path, list_blobs, get_blob, status_blob, has_blob, download_blob, download_hash_sequence, download_with_options, list_tags, delete_tag, export_blob_to_file};
+use crate::iroh_core::blobs::*;
 use iroh_blobs::{
     BlobFormat,
     net_protocol::DownloadMode,
@@ -21,7 +21,7 @@ use std::path::PathBuf;
 // 1. add_blob_bytes
 #[derive(Deserialize)]
 pub struct AddBlobBytesRequest {
-    pub content: String, // User sends a string
+    pub content: String, 
 }
 
 // 2. add_blob_named
@@ -75,10 +75,10 @@ pub struct DownloadRequest {
 // 10. download_with_options
 /* example request body:
 {
-  "hash": "bafkreigh2akiscaildc24rkoc4hvnjsv67q3neydzdmszldtbdfszpz3ya",
+  "hash": "hash_as_string",
   "format": "Raw",
   "mode": "Direct",
-  "nodes": ["3f6bcb6a96dd1e0e78cc53739aa59367f210dacc8c9614ff3a8b93e4bbfead08"],
+  "nodes": ["node_id1", "node_id2"],
   "tag": "Auto"
 }
 */
@@ -87,8 +87,8 @@ pub struct DownloadWithOptionsRequest {
     pub hash: String,                     
     pub format: String,
     pub mode: String,
-    pub nodes: Option<Vec<String>>,
-    pub tag: Option<String>,
+    pub nodes: Vec<String>,
+    pub tag: String,
 }
 
 // 11. list_tags
@@ -188,6 +188,11 @@ pub async fn add_blob_bytes_handler(
     State(state): State<AppState>,
     Json(payload): Json<AddBlobBytesRequest>,
 ) -> Result<Json<AddBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.content.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Content cannot be empty".to_string()));
+    }
+
     let bytes = Bytes::from(payload.content);
 
     match add_blob_bytes(state.blobs.clone(), bytes).await {
@@ -209,6 +214,14 @@ pub async fn add_blob_named_handler(
     State(state): State<AppState>,
     Json(payload): Json<AddBlobNamedRequest>,
 ) -> Result<Json<AddBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.content.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Content cannot be empty".to_string()));
+    }
+    if payload.name.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Name cannot be empty".to_string()));
+    }
+
     let bytes = Bytes::from(payload.content);
     let tag = Tag::from(payload.name);
 
@@ -231,6 +244,11 @@ pub async fn add_blob_from_path_handler(
     State(state): State<AppState>,
     Json(payload): Json<AddBlobFromPathRequest>,
 ) -> Result<Json<AddBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.file_path.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "File path cannot be empty".to_string()));
+    }
+
     let path = std::path::Path::new(&payload.file_path);
 
     match add_blob_from_path(state.blobs.clone(), path).await {
@@ -252,6 +270,11 @@ pub async fn list_blobs_handler(
     State(state): State<AppState>,
     Json(payload): Json<ListBlobsRequest>,
 ) -> Result<Json<Vec<BlobInfoResponse>>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.page_size == 0 {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Page size must be greater than 0".to_string()));
+    }
+
     match list_blobs(state.blobs.clone(), payload.page, payload.page_size).await {
         Ok(blobs) => {
             let response = blobs
@@ -276,6 +299,11 @@ pub async fn get_blob_handler(
     State(state): State<AppState>,
     Json(payload): Json<GetBlobRequest>,
 ) -> Result<Json<GetBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+
     match get_blob(state.blobs.clone(), payload.hash).await {
         Ok(content) => Ok(Json(GetBlobResponse { content })),
         Err(e) => Err((
@@ -290,6 +318,11 @@ pub async fn status_blob_handler(
     State(state): State<AppState>,
     Json(payload): Json<StatusBlobRequest>,
 ) -> Result<Json<StatusBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+
     match status_blob(state.blobs.clone(), payload.hash).await {
         Ok(status) => Ok(Json(StatusBlobResponse { status })),
         Err(e) => Err((
@@ -304,6 +337,11 @@ pub async fn has_blob_handler(
     State(state): State<AppState>,
     Json(payload): Json<HasBlobRequest>,
 ) -> Result<Json<HasBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+
     match has_blob(state.blobs.clone(), payload.hash).await {
         Ok(present) => Ok(Json(HasBlobResponse { present })),
         Err(e) => Err((
@@ -318,6 +356,14 @@ pub async fn download_blob_handler(
     State(state): State<AppState>,
     Json(payload): Json<DownloadRequest>,
 ) -> Result<Json<DownloadOutcomeResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+    if payload.node_id.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Node ID cannot be empty".to_string()));
+    }
+
     match download_blob(state.blobs.clone(), payload.hash, payload.node_id).await {
         Ok(outcome) => Ok(Json(DownloadOutcomeResponse {
             local_size: outcome.local_size,
@@ -337,6 +383,14 @@ pub async fn download_hash_sequence_handler(
     State(state): State<AppState>,
     Json(payload): Json<DownloadRequest>,
 ) -> Result<Json<DownloadOutcomeResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+    if payload.node_id.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Node ID cannot be empty".to_string()));
+    }
+
     match download_hash_sequence(state.blobs.clone(), payload.hash, payload.node_id).await {
         Ok(outcome) => Ok(Json(DownloadOutcomeResponse {
             local_size: outcome.local_size,
@@ -355,6 +409,23 @@ pub async fn download_with_options_handler(
     State(state): State<AppState>,
     Json(req): Json<DownloadWithOptionsRequest>,
 ) -> Result<Json<DownloadOutcomeResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if req.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+    if req.format.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Format cannot be empty".to_string()));
+    }
+    if req.mode.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Mode cannot be empty".to_string()));
+    }
+    if req.nodes.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Nodes cannot be empty".to_string()));
+    }
+    if req.tag.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Tag cannot be empty".to_string()));
+    }
+
     // Parse format
     let format = match req.format.as_str() {
         "Raw" => BlobFormat::Raw,
@@ -443,6 +514,11 @@ pub async fn delete_tag_handler(
     State(state): State<AppState>,
     Json(req): Json<DeleteTagRequest>,
 ) -> Result<Json<DeleteTagResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if req.tag_name.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Tag name cannot be empty".to_string()));
+    }
+
     match delete_tag(state.blobs.clone(), req.tag_name.clone()).await {
         Ok(_) => Ok(Json(DeleteTagResponse {
             message: "Tag deleted successfully".to_string(),
@@ -456,6 +532,14 @@ pub async fn export_blob_to_file_handler(
     State(state): State<AppState>,
     Json(req): Json<ExportBlobRequest>,
 ) -> Result<Json<ExportBlobResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if req.hash.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
+    }
+    if req.destination.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Destination cannot be empty".to_string()));
+    }
+
     let path = PathBuf::from(req.destination.clone());
     
     match export_blob_to_file(state.blobs.clone(), req.hash.clone(), path).await {

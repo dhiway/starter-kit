@@ -1,8 +1,8 @@
 use iroh_blobs::net_protocol::Blobs;
 use iroh_blobs::Hash;
 use iroh_docs::protocol::Docs;
-// use iroh_blobs::store::mem::Store as BlobStore;
-use iroh_blobs::store::fs::Store as BlobStore;
+// use iroh_blobs::store::mem::Store as Store;
+use iroh_blobs::store::fs::Store;
 use iroh_docs::rpc::AddrInfoOptions;
 use iroh_docs::{CapabilityKind, DocTicket, NamespaceId};
 use iroh_docs::rpc::client::docs::{Doc, ShareMode};
@@ -23,6 +23,7 @@ use crate::helpers::utils::{encode_doc_id, decode_doc_id, encode_key, decode_key
 use std::str::FromStr;
 use serde::Serialize;
 use iroh_docs::actor::OpenState;
+use iroh_base::PublicKey;
 
 /// Retrieves a document by its ID.
 /// 
@@ -33,7 +34,7 @@ use iroh_docs::actor::OpenState;
 /// # Returns
 /// * `Doc` - The opened document client.
 pub async fn get_document(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: NamespaceId,
 ) -> anyhow::Result<Doc<FlumeConnector<Response, Request>>> {
     let doc_client = docs.client(); 
@@ -56,7 +57,7 @@ pub async fn get_document(
 /// # Returns
 /// * `String` - The UTF-8 decoded blob content.
 pub async fn get_blob_entry(
-    blobs: Arc<Blobs<BlobStore>>,
+    blobs: Arc<Blobs<Store>>,
     hash: Hash,
 ) -> anyhow::Result<String> {
     let blob_client = blobs.client();
@@ -80,7 +81,7 @@ pub async fn get_blob_entry(
 /// # Returns
 /// * `String` - The base64-encoded document ID.
 pub async fn create_doc(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
 ) -> anyhow::Result<String> {
     let doc_client = docs.client();
 
@@ -102,7 +103,7 @@ pub async fn create_doc(
 /// # Returns
 /// * `Vec<(String, CapabilityKind)>` - A list of encoded document IDs and their capabilities.
 pub async fn list_docs(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
 ) -> anyhow::Result<Vec<(String, CapabilityKind)>> {
     let doc_client = docs.client();
 
@@ -134,7 +135,7 @@ pub async fn list_docs(
 /// # Returns
 /// * `()` - Indicates successful deletion.
 pub async fn drop_doc(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
 ) -> anyhow::Result<()> {
     let namespace_id_vec = decode_doc_id(&doc_id)
@@ -162,7 +163,7 @@ pub async fn drop_doc(
 /// # Returns
 /// * `String` - The generated document share ticket.
 pub async fn share_doc(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
     mode: ShareMode,
     addr_options: AddrInfoOptions,
@@ -190,7 +191,7 @@ pub async fn share_doc(
 /// # Returns
 /// * `String` - The namespace ID of the joined document.
 pub async fn join_doc(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     ticket: String,
 ) -> anyhow::Result<String> {
     let doc_ticket = DocTicket::from_str(&ticket)
@@ -215,7 +216,7 @@ pub async fn join_doc(
 /// # Returns
 /// * `()` - Indicates successful closure.
 pub async fn close_doc(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
 ) -> anyhow::Result<()> {
     let namespace_id_vec = decode_doc_id(&doc_id)
@@ -250,7 +251,7 @@ pub async fn close_doc(
 /// }"#;
 /// ```
 pub async fn add_doc_schema(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     author_id: String,
     doc_id: String,
     schema: String,
@@ -304,8 +305,8 @@ pub async fn add_doc_schema(
 /// });
 /// ```
 pub async fn set_entry(
-    docs: Arc<Docs<BlobStore>>,
-    blobs: Arc<Blobs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
+    blobs: Arc<Blobs<Store>>,
     doc_id: String,
     author_id: String,
     key: String,
@@ -394,7 +395,7 @@ pub struct ImportFileOutcome {
 }
 
 pub async fn set_entry_file (
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
     author_id: String,
     key: String,
@@ -480,7 +481,7 @@ pub struct RecordDetails {
 }
 
 pub async fn get_entry(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
     author_id: String,
     key: String,
@@ -541,7 +542,7 @@ pub async fn get_entry(
 /// # Returns
 /// The content of the blob as a `String`.
 pub async fn get_entry_blob(
-    blobs: Arc<Blobs<BlobStore>>,
+    blobs: Arc<Blobs<Store>>,
     hash: String,
 ) -> anyhow::Result<String> {
     let hash = Hash::from_str(&hash)
@@ -571,7 +572,7 @@ pub async fn get_entry_blob(
 /// # Returns
 /// A list of `EntryDetails` matching the query.
 pub async fn get_entries(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
     query_params: serde_json::Value,
 ) -> anyhow::Result<Vec<EntryDetails>> {
@@ -682,7 +683,7 @@ pub async fn get_entries(
 /// # Returns
 /// The number of deleted entries (should be 1 if successful).
 pub async fn delete_entry(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
     author_id: String,
     key: String,
@@ -726,7 +727,7 @@ pub async fn delete_entry(
 /// # Returns
 /// An empty result on success.
 pub async fn leave(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
 ) -> anyhow::Result<()> {
     let namespace_id_vec = decode_doc_id(&doc_id)
@@ -751,7 +752,7 @@ pub async fn leave(
 /// # Returns
 /// The `OpenState` representing whether the document is joined or not.
 pub async fn status (
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
 ) -> anyhow::Result<OpenState> {
     let namespace_id_vec = decode_doc_id(&doc_id)
@@ -777,7 +778,7 @@ pub async fn status (
 /// # Returns
 /// A JSON representation of the download policy.
 pub async fn get_download_policy(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
 ) -> anyhow::Result<serde_json::Value> {
     let namespace_id_vec = decode_doc_id(&doc_id)
@@ -806,7 +807,7 @@ pub async fn get_download_policy(
 /// # Returns
 /// An empty result on success.
 pub async fn set_download_policy(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     doc_id: String,
     download_policy: serde_json::Value,
 ) -> anyhow::Result<()> {
@@ -885,7 +886,7 @@ mod Tests {
     }
 
     pub async fn delete_all_docs(
-        docs: Arc<Docs<BlobStore>>,
+        docs: Arc<Docs<Store>>,
     ) -> Result<()> {
         let docs_list = list_docs(docs.clone()).await?;
         for (doc_id, _) in docs_list {

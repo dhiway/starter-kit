@@ -1,5 +1,5 @@
 use crate::helpers::state::AppState;
-use crate::iroh_core::authors::{list_authors, get_default_author, set_default_author, create_author, delete_author, verify_author};
+use crate::iroh_core::authors::*;
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,6 @@ pub struct DeleteAuthorRequest {
 pub struct VerifyAuthorRequest {
     pub author_id: String,
 }
-
 
 // Response bodies
 // 1. List authors
@@ -95,6 +94,11 @@ pub async fn set_default_author_handler(
     State(state): State<AppState>,
     Json(payload): Json<SetDefaultAuthorRequest>,
 ) -> Result<Json<SetDefaultAuthorResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.author_id.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+
     match set_default_author(state.docs.clone(), payload.author_id).await {
         Ok(_) => Ok(Json(SetDefaultAuthorResponse {
             message: "Default author set successfully".to_string(),
@@ -118,6 +122,11 @@ pub async fn delete_author_handler(
     State(state): State<AppState>,
     Json(payload): Json<DeleteAuthorRequest>,
 ) -> Result<Json<DeleteAuthorResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.author_id.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+
     match delete_author(state.docs.clone(), payload.author_id).await {
         Ok(message) => Ok(Json(DeleteAuthorResponse { 
             message: "Author deleted successfully".to_string()
@@ -131,6 +140,11 @@ pub async fn verify_author_handler(
     State(state): State<AppState>,
     Json(payload): Json<VerifyAuthorRequest>,
 ) -> Result<Json<VerifyAuthorResponse>, (axum::http::StatusCode, String)> {
+    // request body checks
+    if payload.author_id.is_empty() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+
     match verify_author(state.docs.clone(), payload.author_id).await {
         Ok(is_valid) => Ok(Json(VerifyAuthorResponse { is_valid })),
         Err(e) => Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
