@@ -1,4 +1,4 @@
-use crate::iroh_core::docs::{get_document, get_entry_blob, create_doc, list_docs, drop_doc, share_doc, join_doc, close_doc, add_doc_schema, set_entry, set_entry_file, get_entry, get_entries, delete_entry, leave, status, set_download_policy, get_download_policy};
+use crate::iroh_core::docs::*;
 use crate::helpers::state::AppState;
 use serde::{Deserialize, Serialize};
 use axum::{extract::State, Json};
@@ -255,6 +255,11 @@ pub async fn get_document_handler(
     State(state): State<AppState>,
     Json(payload): Json<GetDocumentRequest>,
 ) -> Result<Json<GetDocumentResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+
     let doc_id = NamespaceId::from_str(&payload.doc_id)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid doc_id: {}", e)))?;
 
@@ -272,6 +277,11 @@ pub async fn get_entry_blob_handler(
     State(state): State<AppState>,
     Json(payload): Json<GetEntryBlobRequest>,
 ) -> Result<Json<GetEntryBlobResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.hash.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "hash cannot be empty".to_string()));
+    }
+
     match get_entry_blob(state.blobs.clone(), payload.hash).await {
         Ok(content) => Ok(Json(GetEntryBlobResponse { content })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
@@ -320,6 +330,11 @@ pub async fn drop_doc_handler(
     State(state): State<AppState>,
     Json(payload): Json<DropDocRequest>,
 ) -> Result<Json<DropDocResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+
     match drop_doc(state.docs.clone(), payload.doc_id).await {
         Ok(_) => Ok(Json(DropDocResponse {
             message: "Document dropped successfully".to_string(),
@@ -333,6 +348,17 @@ pub async fn share_doc_handler(
     State(state): State<AppState>,
     Json(payload): Json<ShareDocRequest>,
 ) -> Result<Json<ShareDocResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.mode.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "mode cannot be empty".to_string()));
+    }
+    if payload.addr_options.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "addr_options cannot be empty".to_string()));
+    }
+
     // Match share mode
     let mode = match payload.mode.to_lowercase().as_str() {
         "read" => ShareMode::Read,
@@ -360,6 +386,11 @@ pub async fn join_doc_handler(
     State(state): State<AppState>,
     Json(payload): Json<JoinDocRequest>,
 ) -> Result<Json<JoinDocResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.ticket.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "ticket cannot be empty".to_string()));
+    }
+
     match join_doc(state.docs.clone(), payload.ticket).await {
         Ok(doc_id) => Ok(Json(JoinDocResponse { doc_id })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
@@ -371,6 +402,11 @@ pub async fn close_doc_handler(
     State(state): State<AppState>,
     Json(payload): Json<CloseDocRequest>,
 ) -> Result<Json<CloseDocResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+
     match close_doc(state.docs.clone(), payload.doc_id).await {
         Ok(_) => Ok(Json(CloseDocResponse {
             message: "Document closed successfully".to_string(),
@@ -399,6 +435,17 @@ pub async fn add_doc_schema_handler(
     State(state): State<AppState>,
     Json(payload): Json<AddDocSchemaRequest>,
 ) -> Result<Json<AddDocSchemaResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.author_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.schema.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "schema cannot be empty".to_string()));
+    }
+
     match add_doc_schema(
         state.docs.clone(),
         payload.author_id,
@@ -418,6 +465,20 @@ pub async fn set_entry_handler(
     State(state): State<AppState>,
     Json(payload): Json<SetEntryRequest>,
 ) -> Result<Json<SetEntryResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.author_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+    if payload.key.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "key cannot be empty".to_string()));
+    }
+    if payload.value.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "value cannot be empty".to_string()));
+    }
+
     match set_entry(
         state.docs.clone(),
         state.blobs.clone(),
@@ -438,6 +499,20 @@ pub async fn set_entry_file_handler(
     State(state): State<AppState>,
     Json(payload): Json<SetEntryFileRequest>,
 ) -> Result<Json<SetEntryFileResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.author_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+    if payload.key.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "key cannot be empty".to_string()));
+    }
+    if payload.file_path.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "file_path cannot be empty".to_string()));
+    }
+
     match set_entry_file(
         state.docs.clone(),
         payload.doc_id,
@@ -461,6 +536,21 @@ pub async fn get_entry_handler(
     State(state): State<AppState>,
     Json(payload): Json<GetEntryRequest>,
 ) -> Result<Json<GetEntryResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.author_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+    if payload.key.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "key cannot be empty".to_string()));
+    }
+
+    if payload.include_empty.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "include_empty cannot be empty".to_string()));
+    }
+
     match get_entry(
         state.docs.clone(),
         payload.doc_id,
@@ -488,6 +578,14 @@ pub async fn get_entries_handler(
     State(state): State<AppState>,
     Json(payload): Json<GetEntriesRequest>,
 ) -> Result<Json<Vec<GetEntryResponse>>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.query_params.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "query_params cannot be empty".to_string()));
+    }
+
     // Parse query_params string into JSON
     let query_params: serde_json::Value = serde_json::from_str(&payload.query_params)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid query_params: {}", e)))?;
@@ -495,7 +593,6 @@ pub async fn get_entries_handler(
     // Fetch entries
     match get_entries(state.docs.clone(), payload.doc_id.clone(), query_params).await {
         Ok(entry_details_vec) => {
-            // Convert EntryDetails into GetEntryResponse
             let response_vec = entry_details_vec
                 .into_iter()
                 .map(|entry| GetEntryResponse {
@@ -519,6 +616,17 @@ pub async fn delete_entry_handler(
     State(state): State<AppState>,
     Json(payload): Json<DeleteEntryRequest>,
 ) -> Result<Json<DeleteEntryResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.author_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
+    }
+    if payload.key.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "key cannot be empty".to_string()));
+    }
+
     match delete_entry(
         state.docs.clone(),
         payload.doc_id,
@@ -535,6 +643,11 @@ pub async fn leave_handler(
     State(state): State<AppState>,
     Json(payload): Json<LeaveRequest>,
 ) -> Result<Json<LeaveResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+
     match leave(state.docs.clone(), payload.doc_id.clone()).await {
         Ok(_) => Ok(Json(LeaveResponse {
             message: format!("Successfully left document {}", payload.doc_id),
@@ -548,6 +661,11 @@ pub async fn status_handler(
     State(state): State<AppState>,
     Json(payload): Json<StatusRequest>,
 ) -> Result<Json<StatusResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+
     match status(state.docs.clone(), payload.doc_id.clone()).await {
         Ok(open_state) => Ok(Json(StatusResponse {
             sync: open_state.sync,
@@ -563,6 +681,14 @@ pub async fn set_download_policy_handler(
     State(state): State<AppState>,
     Json(payload): Json<SetDownloadPolicyRequest>,
 ) -> Result<Json<SetDownloadPolicyResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+    if payload.download_policy.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "download_policy cannot be empty".to_string()));
+    }
+
     let download_policy_value: serde_json::Value = match serde_json::from_str(&payload.download_policy) {
         Ok(val) => val,
         Err(e) => return Err((StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e))),
@@ -581,6 +707,11 @@ pub async fn get_download_policy_handler(
     State(state): State<AppState>,
     Json(payload): Json<GetDownloadPolicyRequest>,
 ) -> Result<Json<GetDownloadPolicyResponse>, (StatusCode, String)> {
+    // request body checks
+    if payload.doc_id.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
+    }
+
     match get_download_policy(state.docs.clone(), payload.doc_id).await {
         Ok(policy_value) => {
             match serde_json::to_string_pretty(&policy_value) {

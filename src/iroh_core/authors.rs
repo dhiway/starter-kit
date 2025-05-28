@@ -1,14 +1,20 @@
 use anyhow::{Result, Context};
 use std::{collections::HashSet, sync::Arc};
 use iroh_docs::{protocol::Docs, AuthorId};
-// use iroh_blobs::store::mem::Store as BlobStore;
-use iroh_blobs::store::fs::Store as BlobStore;
+// use iroh_blobs::store::mem::Store as Store;
+use iroh_blobs::store::fs::Store;
 use futures::TryStreamExt;
 use crate::helpers::utils::SS58AuthorId;
 
-// list the authors
+/// Lists all authors registered in the current context.
+///
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+///
+/// # Returns
+/// * `Vec<String>` - A list of SS58-encoded author IDs.
 pub async fn list_authors(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
 ) -> Result<Vec<String>> {
     let authors_client = docs.client().authors();
 
@@ -31,9 +37,15 @@ pub async fn list_authors(
     Ok(authors)
 }
 
-// get the default author
+/// Retrieves the default author for the current Docs client.
+///
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+///
+/// # Returns
+/// * `String` - The SS58-encoded ID of the default author.
 pub async fn get_default_author(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
 ) -> Result<String> {
     let authors_client = docs.client().authors();
 
@@ -47,9 +59,16 @@ pub async fn get_default_author(
     Ok(encode_author.as_ss58().to_string())
 }
 
-// set the default author
+/// Sets the given author ID as the default author.
+///
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `author_id` - The SS58-encoded ID of the author to set as default.
+///
+/// # Returns
+/// * `()` - Returns unit on success.
 pub async fn set_default_author(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     author_id: String
 ) -> Result<()> {
     let authors_client = docs.client().authors();
@@ -64,9 +83,15 @@ pub async fn set_default_author(
     Ok(())
 }
 
-// create an author
+/// Creates a new author and returns its ID.
+///
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+///
+/// # Returns
+/// * `String` - The SS58-encoded ID of the newly created author.
 pub async fn create_author(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
 ) -> Result<String> {
     let authors_client = docs.client().authors();
 
@@ -79,9 +104,16 @@ pub async fn create_author(
     Ok(encode_author.as_ss58().to_string())
 }
 
-// delete an author
+/// Deletes an author based on its ID.
+///
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `author_id` - The SS58-encoded ID of the author to delete.
+///
+/// # Returns
+/// * `()` - Returns unit on successful deletion.
 pub async fn delete_author(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     author_id: String
 ) -> Result<()> {
     let authors_client = docs.client().authors();
@@ -96,9 +128,16 @@ pub async fn delete_author(
     Ok(())
 }
 
-// verify an author
+/// Verifies whether a given author ID exists.
+///
+/// # Arguments
+/// * `docs` - The Arc-wrapped Docs client.
+/// * `author_id` - The SS58-encoded ID of the author to verify.
+///
+/// # Returns
+/// * `bool` - True if the author exists, false otherwise.
 pub async fn verify_author(
-    docs: Arc<Docs<BlobStore>>,
+    docs: Arc<Docs<Store>>,
     author_id: String
 ) -> Result<bool> {
     let authors_client = docs.client().authors();
@@ -171,7 +210,7 @@ mod tests {
         Ok(iroh_node)
     }
 
-    pub async fn delete_all_authors(docs: Arc<Docs<BlobStore>>) -> Result<()> {
+    pub async fn delete_all_authors(docs: Arc<Docs<Store>>) -> Result<()> {
         let authors = list_authors(docs.clone()).await?;
         let default_author = get_default_author(docs.clone()).await?;
 
