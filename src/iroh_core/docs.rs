@@ -12,7 +12,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use serde_json::Value;
 use bytes::Bytes;
-use quic_rpc::transport::Connector;
 use quic_rpc::transport::flume::FlumeConnector;
 use iroh_docs::rpc::proto::{Request, Response};
 use anyhow::{Result, Context};
@@ -831,7 +830,7 @@ pub async fn set_download_policy(
 // do we need this? 
 
 
-mod Tests {
+mod tests {
     use super::*;
     use crate::node::iroh_wrapper::{IrohNode, setup_iroh_node};
     use crate::helpers::cli::CliArgs;
@@ -840,10 +839,9 @@ mod Tests {
     use tokio::fs::{self, File};
     use std::path::PathBuf;
     use tokio::time::{sleep, Duration};
-    use std::env;
-    use tokio::io::AsyncWriteExt;
     use tokio::process::Command;
     use std::process::Stdio;
+    use tokio::io::AsyncWriteExt;
 
     // Running tests will give any user understanding of how they should run the program in real life. 
     // step 1 is to run ```cargo run``` and fetch 'secret-key' form it and paste it in setup_node function.

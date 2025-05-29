@@ -128,7 +128,7 @@ pub async fn delete_author_handler(
     }
 
     match delete_author(state.docs.clone(), payload.author_id).await {
-        Ok(message) => Ok(Json(DeleteAuthorResponse { 
+        Ok(()) => Ok(Json(DeleteAuthorResponse { 
             message: "Author deleted successfully".to_string()
         })),
         Err(e) => Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
