@@ -250,6 +250,9 @@ pub async fn add_blob_from_path_handler(
     }
 
     let path = std::path::Path::new(&payload.file_path);
+    if !path.exists() {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "File does not exist".to_string()));
+    }
 
     match add_blob_from_path(state.blobs.clone(), path).await {
         Ok(outcome) => Ok(Json(AddBlobResponse {
@@ -541,6 +544,8 @@ pub async fn export_blob_to_file_handler(
     }
 
     let path = PathBuf::from(req.destination.clone());
+
+    // what check should we add for the destination path? Can not check if the path exists as it may not exist yet when the request is made. Check on parent directory existance? 
     
     match export_blob_to_file(state.blobs.clone(), req.hash.clone(), path).await {
         Ok(_) => Ok(Json(ExportBlobResponse {
