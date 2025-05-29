@@ -1,13 +1,14 @@
-use dept_starter_kit_template::node::iroh_wrapper::{setup_iroh_node, IrohNode};
-use dept_starter_kit_template::helpers::state::AppState;
-use dept_starter_kit_template::helpers::cli::CliArgs;
-use dept_starter_kit_template::router::router::create_router;
-use dept_starter_kit_template::helpers::frontend::start_frontend;
+use dept_starter_kit_template::{
+    node::iroh_wrapper::{setup_iroh_node, IrohNode},
+    router::router::create_router,
+    helpers::{
+        cli::CliArgs,
+        frontend::start_frontend,
+        state::AppState,
+    }
+};
 use tokio::signal;
 use std::error::Error;
-use std::process::Command;
-use axum::{routing::{get, post}, Router};
-use tower_http::cors::CorsLayer;
 use clap::Parser;
 
 

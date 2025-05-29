@@ -1,7 +1,7 @@
 use axum::{Router, routing::{get, post}};
 use tower_http::cors::CorsLayer;
 
-use crate::API_handlers::{
+use crate::api_handlers::{
     authors_handler::*,
     blobs_handler::*,
     docs_handler::*,

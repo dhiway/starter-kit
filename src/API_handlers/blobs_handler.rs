@@ -5,7 +5,7 @@ use iroh_blobs::{
     util::SetTagOption,
     rpc::client::blobs::DownloadOptions,
 };
-use iroh::{NodeId, NodeAddr};
+use iroh::NodeAddr;
 use crate::helpers::state::AppState;
 use axum::{extract::State, Json};
 use bytes::Bytes;
@@ -14,7 +14,6 @@ use serde::Serialize;
 use iroh_blobs::util::Tag;
 use std::str::FromStr;
 use iroh_base::PublicKey;
-use anyhow::{Context, Error};
 use std::path::PathBuf;
 
 // Request bodies
@@ -444,29 +443,21 @@ pub async fn download_with_options_handler(
     };
 
     // Parse nodes
-    let nodes = match req.nodes {
-        Some(ref node_list) => {
-            let parsed: Result<Vec<NodeAddr>, String> = node_list
-                .iter()
-                .map(|node_id_str| -> Result<NodeAddr, String> {
-                    let node_id = PublicKey::from_str(node_id_str.trim())
-                        .map_err(|e| format!("Invalid node ID '{}': {}", node_id_str, e))?;
-                    Ok(NodeAddr::from(node_id))
-                })
-                .collect();
-
-            match parsed {
-                Ok(n) => n,
-                Err(e) => return Err((axum::http::StatusCode::BAD_REQUEST, e)),
-            }
-        }
-        None => Vec::new(),
-    };
+    let nodes: Vec<NodeAddr> = req.nodes
+        .iter()
+        .map(|node_id_str| {
+            PublicKey::from_str(node_id_str.trim())
+                .map(NodeAddr::from)
+                .map_err(|e| format!("Invalid node ID '{}': {}", node_id_str, e))
+        })
+        .collect::<Result<_, _>>()
+        .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, e))?;
 
     // Parse tag
-    let tag = match req.tag.as_ref().map(String::as_str) {
-        Some("Auto") | None => SetTagOption::Auto,
-        Some(tag_str) => SetTagOption::Named(Tag(Bytes::from(tag_str.to_owned()))),
+    let tag = if req.tag == "Auto" {
+        SetTagOption::Auto
+    } else {
+        SetTagOption::Named(Tag(Bytes::from(req.tag.clone())))
     };
 
     // Construct DownloadOptions

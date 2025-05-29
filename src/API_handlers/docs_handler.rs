@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use axum::{extract::State, Json};
 use axum::http::StatusCode;
 use std::str::FromStr;
-use std::sync::Arc;
 use iroh_docs::{NamespaceId, CapabilityKind};
-use iroh_blobs::Hash;
 use iroh_docs::rpc::client::docs::ShareMode;
 use iroh_docs::rpc::AddrInfoOptions;
 
@@ -545,10 +543,6 @@ pub async fn get_entry_handler(
     }
     if payload.key.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "key cannot be empty".to_string()));
-    }
-
-    if payload.include_empty.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "include_empty cannot be empty".to_string()));
     }
 
     match get_entry(
