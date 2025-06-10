@@ -1,36 +1,11 @@
-[package]
-name = "dept-starter-kit-template"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+    "api",
+    "core",
+    "helpers",
+    "node",
+    "router",
+    "bin"
+]
 
-[[bin]]
-name = "dept-starter-kit-template"
-path = "src/main.rs"
-
-[dependencies]
-iroh = "0.33.0"
-iroh-blobs = { version = "0.33.1", features = ["rpc"]}
-iroh-docs = { version = "0.33.0", features = ["rpc"]}
-iroh-gossip = "0.33.0"
-iroh-base = "=0.33.0"
-tokio = { version = "1.30.0", features = ["full"] }
-tracing = "0.1"
-anyhow = "1"
-tempfile = "3.19.1"
-rand = "0.8.5"
-serde_json = "1.0.140"
-futures = "=0.3.31"
-quic-rpc = "0.18.3"
-axum = { version = "0.7.9", features = ["multipart", "macros"] }
-lazy_static = "1.5.0"
-bytes = "1.10.1"
-tower-http = { version = "0.6.2", features = ["cors"] }
-serde = "1.0.219"
-hex = "0.4.3"
-base64 = "0.22.1"
-regex = "1.11.1"
-data-encoding = "2.9.0"
-jsonschema = "0.30.0"
-sp-core = "36.1.0"
-clap = { version = "4.5", features = ["derive"] }
-blake3 = "1.8.2"
+resolver = "2"
