@@ -1,0 +1,22 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7.9", features = ["multipart", "macros"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+bytes = "1.10.1"
+iroh = "0.33.0"
+iroh-blobs = { version = "0.33.1", features = ["rpc"] }
+iroh-docs = { version = "0.33.0", features = ["rpc"] }
+iroh-base = "=0.33.0"
+anyhow = "1"
+futures = "=0.3.31"
+hex = "0.4.3"
+base64 = "0.22.1"
+regex = "1.11.1"
+
+core = { path = "../core" }
+helpers = { path = "../helpers" }
