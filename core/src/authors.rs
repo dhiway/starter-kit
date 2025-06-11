@@ -1,10 +1,41 @@
 use helpers::utils::SS58AuthorId;
 
 use anyhow::{Result, Context};
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, sync::Arc, fmt};
 use iroh_docs::{protocol::Docs, AuthorId};
 use iroh_blobs::store::fs::Store;
 use futures::TryStreamExt;
+
+// Errors
+#[derive(Debug, PartialEq)]
+pub enum AuthorError {
+    /// The specified author was not found in the system.
+    AuthorNotFound,
+    /// No default author is set or the default author could not be found.
+    DefaultAuthorNotFound,
+    /// The provided author ID format is invalid or cannot be decoded.
+    InvalidAuthorIdFormat,
+    /// Failed to retrieve the list of authors from the backend.
+    FailedToListAuthors,
+    /// Failed to create a new author.
+    FailedToCreateAuthor,
+    /// Failed to delete the specified author.
+    FailedToDeleteAuthor,
+    /// Failed to set the specified author as the default.
+    FailedToSetDefaultAuthor,
+    /// An error occurred while streaming the list of authors.
+    StreamingError,
+    /// Failed to collect the authors from the stream.
+    FailedToCollectAuthors,
+}
+
+impl fmt::Display for AuthorError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for AuthorError {}
 
 /// Lists all authors registered in the current context.
 ///
@@ -15,22 +46,23 @@ use futures::TryStreamExt;
 /// * `Vec<String>` - A list of SS58-encoded author IDs.
 pub async fn list_authors(
     docs: Arc<Docs<Store>>,
-) -> Result<Vec<String>> {
+) -> Result<Vec<String>, AuthorError> {
     let authors_client = docs.client().authors();
 
     let mut author_stream = authors_client
         .list()
         .await
-        .with_context(|| "Failed to list authors")?;
+        .map_err(|_| AuthorError::FailedToListAuthors)?;
 
     let mut authors = Vec::new();
 
     while let Some(author) = author_stream
         .try_next()
         .await
-        .with_context(|| "Error while streaming author list")?
+        .map_err(|_| AuthorError::StreamingError)?
     {
-        let encode_author = SS58AuthorId::from_author_id(&author)?;
+        let encode_author = SS58AuthorId::from_author_id(&author)
+            .map_err(|_| AuthorError::InvalidAuthorIdFormat)?;
         authors.push(encode_author.as_ss58().to_string());
     }
 
@@ -46,15 +78,16 @@ pub async fn list_authors(
 /// * `String` - The SS58-encoded ID of the default author.
 pub async fn get_default_author(
     docs: Arc<Docs<Store>>,
-) -> Result<String> {
+) -> Result<String, AuthorError> {
     let authors_client = docs.client().authors();
 
     let default_author = authors_client
         .default()
         .await
-        .with_context(|| "Failed to get default author")?;
+        .map_err(|_| AuthorError::DefaultAuthorNotFound)?;
 
-    let encode_author = SS58AuthorId::from_author_id(&default_author)?;
+    let encode_author = SS58AuthorId::from_author_id(&default_author)
+        .map_err(|_| AuthorError::InvalidAuthorIdFormat)?;
     
     Ok(encode_author.as_ss58().to_string())
 }
@@ -70,15 +103,16 @@ pub async fn get_default_author(
 pub async fn set_default_author(
     docs: Arc<Docs<Store>>,
     author_id: String
-) -> Result<()> {
+) -> Result<(), AuthorError> {
     let authors_client = docs.client().authors();
 
-    let author = SS58AuthorId::decode(&author_id)?;
+    let author = SS58AuthorId::decode(&author_id)
+        .map_err(|_| AuthorError::InvalidAuthorIdFormat)?;
 
     authors_client
         .set_default(author)
         .await
-        .with_context(|| "Failed to set default author")?;
+        .map_err(|_| AuthorError::FailedToSetDefaultAuthor)?;
 
     Ok(())
 }
@@ -92,15 +126,17 @@ pub async fn set_default_author(
 /// * `String` - The SS58-encoded ID of the newly created author.
 pub async fn create_author(
     docs: Arc<Docs<Store>>,
-) -> Result<String> {
+) -> Result<String, AuthorError> {
     let authors_client = docs.client().authors();
 
     let author_id = authors_client
         .create()
         .await
-        .with_context(|| "Failed to create author")?;
+        .map_err(|_| AuthorError::FailedToCreateAuthor)?;
 
-    let encode_author = SS58AuthorId::from_author_id(&author_id)?;
+    let encode_author = SS58AuthorId::from_author_id(&author_id)
+        .map_err(|_| AuthorError::InvalidAuthorIdFormat)?;
+    
     Ok(encode_author.as_ss58().to_string())
 }
 
@@ -115,15 +151,30 @@ pub async fn create_author(
 pub async fn delete_author(
     docs: Arc<Docs<Store>>,
     author_id: String
-) -> Result<()> {
+) -> Result<(), AuthorError> {
     let authors_client = docs.client().authors();
 
-    let author = SS58AuthorId::decode(&author_id)?;
+    let author = SS58AuthorId::decode(&author_id)
+        .map_err(|_| AuthorError::InvalidAuthorIdFormat)?;
+    
+    // Check existence first
+    let authors_set: HashSet<AuthorId> = 
+        authors_client
+            .list()
+            .await
+            .map_err(|_| AuthorError::FailedToListAuthors)?
+            .try_collect::<HashSet<_>>()
+            .await
+            .map_err(|_| AuthorError::FailedToCollectAuthors)?;
+
+    if !authors_set.contains(&author) {
+        return Err(AuthorError::AuthorNotFound);
+    }
 
     authors_client
         .delete(author)
         .await
-        .with_context(|| "Failed to delete author")?;
+        .map_err(|_| AuthorError::FailedToDeleteAuthor)?;
 
     Ok(())
 }
@@ -139,19 +190,20 @@ pub async fn delete_author(
 pub async fn verify_author(
     docs: Arc<Docs<Store>>,
     author_id: String
-) -> Result<bool> {
+) -> Result<bool, AuthorError> {
     let authors_client = docs.client().authors();
 
-    let author = SS58AuthorId::decode(&author_id)?;
+    let author = SS58AuthorId::decode(&author_id)
+        .map_err(|_| AuthorError::InvalidAuthorIdFormat)?;
 
     let authors_set: HashSet<AuthorId> = 
         authors_client
             .list()
             .await
-            .with_context(|| "Failed to list authors")?
+            .map_err(|_| AuthorError::FailedToListAuthors)?
             .try_collect::<HashSet<_>>()
             .await
-            .with_context(|| "Error while collecting author list")?;
+            .map_err(|_| AuthorError::FailedToCollectAuthors)?;
 
     Ok(authors_set.contains(&author))
 }
@@ -162,7 +214,7 @@ mod tests {
         setup_iroh_node,
         IrohNode};
     use helpers::cli::CliArgs;
-    
+
     use anyhow::{anyhow, Result};
     use std::default;
     use std::path::PathBuf;
@@ -280,12 +332,12 @@ mod tests {
 
         // Attempting to stream authors after shutting down router should fail
         let result = list_authors(docs.clone()).await;
-        let error_str = format!("{:?}", result.unwrap_err());
+        // let error_str = format!("{:?}", result.unwrap_err());
 
         assert!(
-            error_str.contains("Error while streaming author list"),
-            "Expected streaming error, got: {}",
-            error_str
+            matches!(result, Err(AuthorError::StreamingError)),
+            "Expected streaming error, got: {:?}",
+            result
         );
 
         fs::remove_dir_all("Test/test_blobs").await?;
@@ -350,6 +402,27 @@ mod tests {
     }
 
     // delete_author
+
+    // write a test to delete an author which does not exist
+    #[tokio::test]
+    pub async fn test_delete_non_existent_author() -> Result<()> {
+        let iroh_node = setup_node().await?;
+        let docs = iroh_node.docs.clone();
+
+        let non_existent_author = "3uZsinKvBzw7MbhEo1F1Mmx8yWokz3E3cVfWGfrWvuHH8qFD".to_string();
+        let result = delete_author(docs.clone(), non_existent_author).await;
+        assert!(
+            matches!(result, Err(AuthorError::AuthorNotFound)),
+            "Expected AuthorNotFound error, got: {:?}",
+            result
+        );
+
+        fs::remove_dir_all("Test/test_blobs").await?;
+        fs::remove_dir_all("Test").await?;
+        iroh_node.router.shutdown().await?;
+        Ok(())
+    }
+
     #[tokio::test]
     pub async fn test_delete_author() -> Result<()> {
         let iroh_node = setup_node().await?;
