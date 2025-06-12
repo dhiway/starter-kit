@@ -7,7 +7,7 @@ use iroh_blobs::store::fs::Store;
 use futures::TryStreamExt;
 
 // Errors
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AuthorError {
     /// The specified author was not found in the system.
     AuthorNotFound,
@@ -332,7 +332,6 @@ mod tests {
 
         // Attempting to stream authors after shutting down router should fail
         let result = list_authors(docs.clone()).await;
-        // let error_str = format!("{:?}", result.unwrap_err());
 
         assert!(
             matches!(result, Err(AuthorError::StreamingError)),
