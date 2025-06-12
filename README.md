@@ -146,4 +146,4 @@ TBD
 
 ---
 
-**Cyra Starter Kit** — Build decentralized, persistent, and secure document stores with ease.
+**Starter Kit** — Build decentralized, persistent, and secure document stores with ease.
