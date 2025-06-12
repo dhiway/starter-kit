@@ -8,13 +8,76 @@ use iroh_blobs::{
     store::{ExportFormat, ExportMode},
     Hash,
 };
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{path::{Path, PathBuf}, sync::Arc, fmt};
 use anyhow::{Result, Context};
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use std::str::FromStr;
+
+// Errors
+#[derive(Debug, PartialEq, Clone)]
+pub enum BlobError {
+    // /// The specified blob was not found in the store.
+    // BlobNotFound,
+    /// The provided blob hash format is invalid or cannot be decoded.
+    InvalidBlobHashFormat,
+    /// Failed to add bytes as a blob.
+    FailedToAddBlobBytes,
+    /// Failed to add named bytes as a blob.
+    FailedToAddNamedBlob,
+    /// Failed to add a blob from the specified file path.
+    FailedToAddBlobFromPath,
+    /// Failed to canonicalize the provided file path.
+    FailedToCanonicalizePath,
+    /// Failed to finish the blob add operation.
+    FailedToFinishBlobAdd,
+    /// Failed to list blobs from the store.
+    FailedToListBlobs,
+    /// Failed to collect blobs from the stream.
+    FailedToCollectBlobs,
+    /// Failed to read the blob content.
+    FailedToReadBlob,
+    /// Failed to get the status of the blob.
+    FailedToGetBlobStatus,
+    /// Failed to check if the blob exists.
+    FailedToCheckBlobExistence,
+    /// Failed to initiate blob download.
+    FailedToInitiateDownload,
+    /// Failed to finish blob download.
+    FailedToFinishDownload,
+    /// Failed to parse the node ID.
+    InvalidNodeIdFormat,
+    /// Failed to initiate hash sequence download.
+    FailedToInitiateHashSequenceDownload,
+    /// Failed to finish hash sequence download.
+    FailedToFinishHashSequenceDownload,
+    /// Failed to initiate download with options.
+    FailedToInitiateDownloadWithOptions,
+    /// Failed to finish download with options.
+    FailedToFinishDownloadWithOptions,
+    /// Failed to list tags.
+    FailedToListTags,
+    /// Failed to collect tags from the stream.
+    FailedToCollectTags,
+    /// Failed to delete the specified tag.
+    FailedToDeleteTag,
+    /// Failed to export the blob to a file.
+    FailedToExportBlob,
+    /// Failed to finish the blob export operation.
+    FailedToFinishExportBlob,
+    // /// The export destination path is invalid or cannot be canonicalized.
+    // InvalidExportDestination,
+}
+
+impl fmt::Display for BlobError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for BlobError {}
 
 
 /// Adds raw bytes as a blob.
@@ -28,13 +91,13 @@ use std::str::FromStr;
 pub async fn add_blob_bytes(
     blobs: Arc<Blobs<Store>>,
     bytes: impl Into<Bytes>,
-) -> anyhow::Result<AddOutcome> {
+) -> Result<AddOutcome, BlobError> {
     let blobs_client = blobs.client();
     
     let outcome = blobs_client
         .add_bytes(bytes)
         .await
-        .with_context(|| "Failed to add bytes as blob")?;
+        .map_err(|_| BlobError::FailedToAddBlobBytes)?;
 
     Ok(outcome)
 }
@@ -52,13 +115,13 @@ pub async fn add_blob_named(
     blobs: Arc<Blobs<Store>>,
     bytes: impl Into<Bytes>,
     name: impl Into<Tag>,
-) -> anyhow::Result<AddOutcome> {
+) -> Result<AddOutcome, BlobError> {
     let blobs_client = blobs.client();
     
     let outcome = blobs_client
         .add_bytes_named(bytes, name)
         .await
-        .with_context(|| "Failed to add named bytes as blob")?;
+        .map_err(|_| BlobError::FailedToAddNamedBlob)?;
 
     Ok(outcome)
 }
@@ -74,21 +137,21 @@ pub async fn add_blob_named(
 pub async fn add_blob_from_path(
     blobs: Arc<Blobs<Store>>,
     file_path: &Path
-) -> anyhow::Result<AddOutcome> {
+) -> Result<AddOutcome, BlobError> {
     let blobs_client = blobs.client();
     
     let abs_path = std::fs::canonicalize(file_path)
-        .with_context(|| format!("Failed to canonicalize path: {:?}", file_path))?;
+        .map_err(|_| BlobError::FailedToCanonicalizePath)?;
     
     let add_progress = blobs_client
         .add_from_path(abs_path.clone(), false, SetTagOption::Auto, WrapOption::NoWrap)
         .await
-        .with_context(|| format!("Failed to add file from path: {:?}", abs_path))?;
+        .map_err(|_| BlobError::FailedToAddBlobFromPath)?;
     
     let outcome = add_progress
         .finish()
         .await
-        .with_context(|| "Failed to finish blob add operation")?;
+        .map_err(|_| BlobError::FailedToFinishBlobAdd)?;
 
     Ok(outcome)
 }
@@ -108,20 +171,20 @@ pub async fn list_blobs(
     blobs: Arc<Blobs<Store>>,
     page: usize,
     page_size: usize,
-) -> anyhow::Result<Vec<BlobInfo>> {
+) -> Result<Vec<BlobInfo>, BlobError> {
     let blobs_client = blobs.client();
     
     let stream = blobs_client
         .list()
         .await
-        .with_context(|| "Failed to list blobs")?;
+        .map_err(|_| BlobError::FailedToListBlobs)?;
 
     let blobs: Vec<BlobInfo> = stream
         .skip(page * page_size)
         .take(page_size)
         .try_collect::<Vec<_>>()
         .await
-        .with_context(|| "Failed to collect blobs from stream")?;
+        .map_err(|_| BlobError::FailedToCollectBlobs)?;
 
     Ok(blobs)
 }
@@ -137,16 +200,16 @@ pub async fn list_blobs(
 pub async fn get_blob(
     blobs: Arc<Blobs<Store>>,
     hash: String,
-) -> anyhow::Result<String> {
+) -> Result<String, BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
     
     let blob_content = blobs_client
         .read_to_bytes(hash)
         .await
-        .with_context(|| format!("Failed to read blob with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToReadBlob)?;
 
     match String::from_utf8(blob_content.to_vec()) {
         Ok(utf8_string) => Ok(utf8_string),
@@ -168,16 +231,16 @@ pub async fn get_blob(
 pub async fn status_blob(
     blobs: Arc<Blobs<Store>>,
     hash: String,
-) -> anyhow::Result<String> {
+) -> Result<String, BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
 
     let blob_status = blobs_client
         .status(hash)
         .await
-        .with_context(|| format!("Failed to get status for blob with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToGetBlobStatus)?;
 
     let status_string = match blob_status {
         BlobStatus::NotFound => "NotFound".to_string(),
@@ -199,16 +262,16 @@ pub async fn status_blob(
 pub async fn has_blob(
     blobs: Arc<Blobs<Store>>,
     hash: String,
-) -> anyhow::Result<bool> {
+) -> Result<bool, BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
 
     let is_present = blobs_client
         .has(hash)
         .await
-        .with_context(|| format!("Failed to check if blob with hash: {} is present", hash))?;
+        .map_err(|_| BlobError::FailedToCheckBlobExistence)?;
 
     Ok(is_present)
 }
@@ -226,26 +289,26 @@ pub async fn download_blob(
     blobs: Arc<Blobs<Store>>,
     hash: String,
     node_id: String,
-) -> anyhow::Result<DownloadOutcome> {
+) -> Result<DownloadOutcome, BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
 
     let node_id = NodeId::from_str(&node_id)
-        .with_context(|| format!("Failed to parse node ID: {}", node_id))?;
+        .map_err(|_| BlobError::InvalidNodeIdFormat)?;
 
     let node_addr = NodeAddr::from(node_id);
 
     let download_progress = blobs_client
         .download(hash, node_addr)
         .await
-        .with_context(|| format!("Failed to initiate download for blob with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToInitiateDownload)?;
 
     let download_outcome = download_progress
         .finish()
         .await
-        .with_context(|| format!("Failed to finish download for blob with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToFinishDownload)?;
 
     Ok(download_outcome)
 }
@@ -264,26 +327,26 @@ pub async fn download_hash_sequence(
     blobs: Arc<Blobs<Store>>,
     hash: String,
     node_id: String,
-) -> anyhow::Result<DownloadOutcome> {
+) -> Result<DownloadOutcome, BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash sequence: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
 
     let node_id = NodeId::from_str(&node_id)
-        .with_context(|| format!("Failed to parse node ID: {}", node_id))?;
+        .map_err(|_| BlobError::InvalidNodeIdFormat)?;
 
     let node_addr = NodeAddr::from(node_id);
 
     let download_progress = blobs_client
         .download_hash_seq(hash, node_addr)
         .await
-        .with_context(|| format!("Failed to initiate hash sequence download with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToInitiateHashSequenceDownload)?;
 
     let download_outcome = download_progress
         .finish()
         .await
-        .with_context(|| format!("Failed to finish hash sequence download with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToFinishHashSequenceDownload)?;
 
     Ok(download_outcome)
 }
@@ -301,21 +364,21 @@ pub async fn download_with_options(
     blobs: Arc<Blobs<Store>>,
     hash: String,
     options: DownloadOptions,
-) -> anyhow::Result<DownloadOutcome> {
+) -> Result<DownloadOutcome, BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash with options: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
 
     let download_progress = blobs_client
         .download_with_opts(hash, options)
         .await
-        .with_context(|| format!("Failed to initiate download with options for blob with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToInitiateDownloadWithOptions)?;
 
     let download_outcome = download_progress
         .finish()
         .await
-        .with_context(|| format!("Failed to finish download with options for blob with hash: {}", hash))?;
+        .map_err(|_| BlobError::FailedToFinishDownloadWithOptions)?;
 
     Ok(download_outcome)
 }
@@ -329,7 +392,7 @@ pub async fn download_with_options(
 /// * `Vec<TagInfo>` - A list of tag metadata.
 pub async fn list_tags(
     blobs: Arc<Blobs<Store>>,
-) -> anyhow::Result<Vec<TagInfo>> {
+) -> Result<Vec<TagInfo>, BlobError> {
     let blobs_client = blobs.client();
 
     let tag_client = blobs_client.tags();
@@ -337,12 +400,12 @@ pub async fn list_tags(
     let stream = tag_client
         .list()
         .await
-        .with_context(|| "Failed to list tags")?;
+        .map_err(|_| BlobError::FailedToListTags)?;
 
     let tags: Vec<TagInfo> = stream
         .try_collect::<Vec<_>>()
         .await
-        .with_context(|| "Failed to collect tags from stream")?;
+        .map_err(|_| BlobError::FailedToCollectTags)?;
 
     Ok(tags)
 }
@@ -358,7 +421,7 @@ pub async fn list_tags(
 pub async fn delete_tag(
     blobs: Arc<Blobs<Store>>,
     tag_name: impl AsRef<[u8]>,
-) -> anyhow::Result<()> {
+) -> Result<(), BlobError> {
     let blobs_client = blobs.client();
 
     let tag_client = blobs_client.tags();
@@ -368,7 +431,7 @@ pub async fn delete_tag(
     tag_client
         .delete(tag.clone())
         .await
-        .with_context(|| format!("Failed to delete tag: {}", tag))?;
+        .map_err(|_| BlobError::FailedToDeleteTag)?;
 
     Ok(())
 }
@@ -386,18 +449,19 @@ pub async fn export_blob_to_file(
     blobs: Arc<Blobs<Store>>,
     hash: String,
     destination: PathBuf,
-) -> Result<()> {
+) -> Result<(), BlobError> {
     let blobs_client = blobs.client();
 
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash for export: {}", hash))?;
+        .map_err(|_| BlobError::InvalidBlobHashFormat)?;
 
     blobs_client
         .export(hash, destination.clone() , ExportFormat::Blob, ExportMode::Copy)
-        .await?
+        .await
+        .map_err(|_| BlobError::FailedToExportBlob)?
         .finish()
-        .await?;
-    println!("Exported blob with hash: {} to file: {:?}", hash, destination);
+        .await
+        .map_err(|_| BlobError::FailedToFinishExportBlob)?;
 
     Ok(())
 }
@@ -533,8 +597,7 @@ mod tests {
 
         let result = add_blob_from_path(blobs, invalid_path).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(error_str.contains("Failed to canonicalize path"));
+        assert!(matches!(result, Err(BlobError::FailedToCanonicalizePath)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -584,12 +647,7 @@ mod tests {
 
         let result = list_blobs(blobs.clone(), 0, 10).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(
-            error_str.contains("Failed to collect blobs from stream"),
-            "Unexpected error: {}",
-            error_str
-        );
+        assert!(matches!(result, Err(BlobError::FailedToCollectBlobs)));
 
         // Clean up
         fs::remove_dir_all("Test/test_blobs").await?;
@@ -626,8 +684,7 @@ mod tests {
 
         let result = get_blob(blobs, invalid_hash.clone()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(error_str.contains(&format!("Failed to parse hash: {}", invalid_hash)));
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -696,7 +753,13 @@ mod tests {
 
         let blobs_clone = blobs.clone();
         let download_handle: JoinHandle<anyhow::Result<DownloadOutcome>> = tokio::spawn(async move {
-            download_blob(blobs_clone, outcome.hash.clone().to_string(), iroh_node_2.node_id.clone().to_string()).await
+            download_blob(
+                blobs_clone, 
+                outcome.hash.clone().to_string(), 
+                iroh_node_2.node_id.clone().to_string()
+            )
+            .await
+            .map_err(|e| anyhow!("Download failed: {}", e))
         });
         sleep(Duration::from_secs(2)).await;
         download_handle.abort();
@@ -727,8 +790,7 @@ mod tests {
 
         let result = status_blob(blobs, invalid_hash.clone()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(error_str.contains(&format!("Failed to parse hash: {}", invalid_hash)));
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -768,8 +830,7 @@ mod tests {
 
         let result = has_blob(blobs, invalid_hash.clone()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(error_str.contains(&format!("Failed to parse hash: {}", invalid_hash)));
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -823,12 +884,7 @@ mod tests {
 
         let result = download_blob(blobs, invalid_hash.to_string(), valid_node_id).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(
-            error_str.contains("Failed to parse hash"),
-            "Expected hash parsing error, got: {}",
-            error_str
-        );
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -850,12 +906,7 @@ mod tests {
 
         let result = download_blob(blobs, valid_hash, invalid_node_id.to_string()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(
-            error_str.contains("Failed to parse node ID"),
-            "Expected node ID parsing error, got: {}",
-            error_str
-        );
+        assert!(matches!(result, Err(BlobError::InvalidNodeIdFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -910,9 +961,9 @@ mod tests {
         let valid_node_id = iroh_node.node_id.to_string();
 
         let result = download_hash_sequence(blobs, invalid_hash.to_string(), valid_node_id).await;
-        let error_str = format!("{:?}", result.unwrap_err());
+        let error_str = format!("{:?}", result.clone().unwrap_err());
 
-        assert!(error_str.contains("Failed to parse hash sequence"));
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -931,9 +982,9 @@ mod tests {
         let invalid_node_id = "not-a-node-id";
 
         let result = download_hash_sequence(blobs, valid_hash, invalid_node_id.to_string()).await;
-        let error_str = format!("{:?}", result.unwrap_err());
+        let error_str = format!("{:?}", result.clone().unwrap_err());
 
-        assert!(error_str.contains("Failed to parse node ID"));
+        assert!(matches!(result, Err(BlobError::InvalidNodeIdFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -1014,8 +1065,7 @@ mod tests {
 
         let result = download_with_options(blobs, invalid_hash.clone(), download_options).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(error_str.contains(&format!("Failed to parse hash with options: {}", invalid_hash)));
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         fs::remove_dir_all("Test/test_blobs").await?;
         fs::remove_dir_all("Test").await?;
@@ -1141,9 +1191,7 @@ mod tests {
         
         let result = export_blob_to_file(blobs.clone(), invalid_hash, destination.clone()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-
-        assert!(error_str.contains("Failed to parse hash for export: this is not a valid hash"));
+        assert!(matches!(result, Err(BlobError::InvalidBlobHashFormat)));
 
         // Clean up
         fs::remove_dir_all("Test/test_blobs").await?;
