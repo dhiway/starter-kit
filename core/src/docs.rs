@@ -11,6 +11,7 @@ use jsonschema::validator_for;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::fmt;
 use serde_json::Value;
 use bytes::Bytes;
 use quic_rpc::transport::flume::FlumeConnector;
@@ -24,6 +25,106 @@ use serde::Serialize;
 use iroh_docs::actor::OpenState;
 use iroh_base::PublicKey;
 
+#[derive(Debug, PartialEq)]
+pub enum DocError {
+    /// The specified document was not found.
+    DocumentNotFound,
+    /// Failed to decode the document ID.
+    InvalidDocumentIdFormat,
+    /// Failed to decode the author ID.
+    InvalidAuthorIdFormat,
+    /// Failed to create a new document.
+    FailedToCreateDocument,
+    /// Failed to open the specified document.
+    FailedToOpenDocument,
+    /// Failed to list documents from the backend.
+    FailedToListDocuments,
+    /// Error while streaming the document list.
+    StreamingError,
+    /// Failed to drop (delete) the specified document.
+    FailedToDropDocument,
+    /// Failed to share the document.
+    FailedToShareDocument,
+    /// Failed to parse the document share ticket.
+    InvalidDocumentTicketFormat,
+    /// Failed to join a shared document.
+    FailedToJoinDocument,
+    /// Failed to close the document.
+    FailedToCloseDocument,
+    /// Failed to serialize the schema to JSON.
+    FailedToSerializeSchema,
+    /// Failed to validate the schema.
+    FailedToValidateSchema,
+    /// Failed to set the schema in the document.
+    FailedToSetSchema,
+    /// Document already contains entries; schema can only be added to an empty document.
+    DocumentNotEmpty,
+    /// Failed to validate the entry key.
+    FailedToValidateKey,
+    /// Failed to get the schema entry from the document.
+    FailedToGetSchemaEntry,
+    /// Failed to read the blob.
+    FailedToReadBlob,
+    /// Failed to convert schema blob to UTF-8.
+    FailedToConvertBlobUtf8,
+    /// Failed to parse schema blob as JSON.
+    FailedToParseSchemaJson,
+    /// Failed to create JSON schema validator.
+    FailedToCreateSchemaValidator,
+    /// Failed to convert entry value to JSON.
+    FailedToConvertValueJson,
+    /// Entry value does not match the schema.
+    ValueDoesNotMatchSchema,
+    /// Failed to set entry bytes in the document.
+    FailedToSetEntryBytes,
+    /// File does not exist at the specified path.
+    FileDoesNotExist,
+    /// File import not allowed; cannot add a file to a document with a schema.
+    FileImportNotAllowedWithSchema,
+    /// Failed to import file into the document.
+    FailedToImportFile,
+    /// Failed to finish file import.
+    FailedToFinishFileImport,
+    /// Failed to convert entry key to UTF-8.
+    FailedToConvertKeyUtf8,
+    /// Failed to get entry from the document.
+    FailedToGetEntry,
+    /// Failed to decode entry key.
+    FailedToDecodeEntryKey,
+    // /// Failed to encode author ID.
+    FailedToEncodeAuthorId,
+    /// Failed to parse hash.
+    FailedToParseHash,
+    /// Failed to get entries for the document.
+    FailedToGetEntries,
+    /// Invalid sort_by value.
+    InvalidSortByValue,
+    /// Invalid sort_direction value.
+    InvalidSortDirectionValue,
+    /// Failed to delete entry from the document.
+    FailedToDeleteEntry,
+    /// Entry not found for the specified key.
+    EntryNotFound,
+    /// Failed to leave the document.
+    FailedToLeaveDocument,
+    /// Failed to get the status of the document.
+    FailedToGetDocumentStatus,
+    /// Failed to get the download policy for the document.
+    FailedToGetDownloadPolicy,
+    /// Failed to decode the download policy.
+    FailedToDecodeDownloadPolicy,
+    /// Failed to set the download policy for the document.
+    FailedToSetDownloadPolicy,
+}
+
+impl fmt::Display for DocError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for DocError {}
+
 /// Retrieves a document by its ID.
 /// 
 /// # Arguments
@@ -35,14 +136,14 @@ use iroh_base::PublicKey;
 pub async fn get_document(
     docs: Arc<Docs<Store>>,
     doc_id: NamespaceId,
-) -> anyhow::Result<Doc<FlumeConnector<Response, Request>>> {
+) -> anyhow::Result<Doc<FlumeConnector<Response, Request>>, DocError> {
     let doc_client = docs.client(); 
 
     let doc = doc_client
         .open(doc_id)
         .await
-        .with_context(|| format!("Failed to open document {doc_id}"))?
-        .ok_or_else(|| anyhow::anyhow!("Document not found: {doc_id}"))?;
+        .map_err(|_| DocError::FailedToOpenDocument)?
+        .ok_or(DocError::DocumentNotFound)?;
 
     Ok(doc)
 }
@@ -58,16 +159,16 @@ pub async fn get_document(
 pub async fn get_blob_entry(
     blobs: Arc<Blobs<Store>>,
     hash: Hash,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let blob_client = blobs.client();
 
     let read_to_bytes = blob_client
         .read_to_bytes(hash)
         .await
-        .with_context(|| format!("Failed to read blob {hash}"))?;
+        .map_err(|_| DocError::FailedToReadBlob)?;
 
     let decoded_str = std::str::from_utf8(&read_to_bytes)
-        .with_context(|| format!("Failed to decode blob {hash}"))?;
+        .map_err(|_| DocError::FailedToConvertBlobUtf8)?;
 
     Ok(decoded_str.to_string())
 }
@@ -81,13 +182,13 @@ pub async fn get_blob_entry(
 /// * `String` - The base64-encoded document ID.
 pub async fn create_doc(
     docs: Arc<Docs<Store>>,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let doc_client = docs.client();
 
     let doc = doc_client
         .create()
         .await
-        .with_context(|| "Failed to create document")?;
+        .map_err(|_| DocError::FailedToCreateDocument)?;
 
     let doc_id = encode_doc_id(doc.id().as_bytes());
 
@@ -103,20 +204,20 @@ pub async fn create_doc(
 /// * `Vec<(String, CapabilityKind)>` - A list of encoded document IDs and their capabilities.
 pub async fn list_docs(
     docs: Arc<Docs<Store>>,
-) -> anyhow::Result<Vec<(String, CapabilityKind)>> {
+) -> anyhow::Result<Vec<(String, CapabilityKind)>, DocError> {
     let doc_client = docs.client();
 
     let mut docs_stream = doc_client
         .list()
         .await
-        .with_context(|| "Failed to list documents")?;
+        .map_err(|_| DocError::FailedToListDocuments)?;
 
     let mut doc_list = Vec::new();
 
     while let Some((namespace_id, capability)) = docs_stream
         .try_next()
         .await
-        .with_context(|| "Error while streaming document list")?
+        .map_err(|_| DocError::StreamingError)?
     {
         let doc_id = encode_doc_id(namespace_id.as_bytes());
         doc_list.push((doc_id, capability));
@@ -136,9 +237,9 @@ pub async fn list_docs(
 pub async fn drop_doc(
     docs: Arc<Docs<Store>>,
     doc_id: String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<(), DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let doc_client = docs.client();
@@ -146,7 +247,7 @@ pub async fn drop_doc(
     doc_client
         .drop_doc(namespace_id)
         .await
-        .with_context(|| format!("Failed to drop document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToDropDocument)?;
 
     Ok(())
 }
@@ -166,17 +267,19 @@ pub async fn share_doc(
     doc_id: String,
     mode: ShareMode,
     addr_options: AddrInfoOptions,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let doc_ticket = doc
         .share(mode, addr_options)
         .await
-        .with_context(|| format!("Failed to share document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToShareDocument)?;
 
     Ok(doc_ticket.to_string())
 }
@@ -192,16 +295,16 @@ pub async fn share_doc(
 pub async fn join_doc(
     docs: Arc<Docs<Store>>,
     ticket: String,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let doc_ticket = DocTicket::from_str(&ticket)
-        .with_context(|| format!("Failed to parse document ticket {ticket}"))?;
+        .map_err(|_| DocError::InvalidDocumentTicketFormat)?;
 
     let doc_client = docs.client();
 
     let (doc, _) = doc_client
         .import_and_subscribe(doc_ticket)
         .await
-        .with_context(|| "Failed to join document")?;
+        .map_err(|_| DocError::FailedToJoinDocument)?;
 
     Ok(doc.id().to_string())
 }
@@ -217,16 +320,18 @@ pub async fn join_doc(
 pub async fn close_doc(
     docs: Arc<Docs<Store>>,
     doc_id: String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<(), DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     doc.close()
         .await
-        .with_context(|| format!("Failed to close document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToCloseDocument)?;
 
     Ok(())
 }
@@ -254,25 +359,29 @@ pub async fn add_doc_schema(
     author_id: String,
     doc_id: String,
     schema: String,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let schema_json_bytes = serde_json::from_str(&schema)
-        .context("Failed to serialize schema to JSON")?;
+        .map_err(|_| DocError::FailedToSerializeSchema)?;
 
     validator_for(&schema_json_bytes)
-        .context("Failed to validate schema")?;
+        .map_err(|_| DocError::FailedToValidateSchema)?;
 
     let author = SS58AuthorId::decode(&author_id)
-        .with_context(|| format!("Failed to decode author ID {author_id}"))?;
+        .map_err(|_| DocError::InvalidAuthorIdFormat)?;
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
-    let mut entries_stream = doc.get_many(Query::all()).await?;
+    let mut entries_stream = doc.get_many(Query::all())
+        .await
+        .map_err(|_| DocError::FailedToGetEntries)?;
     if entries_stream.next().await.is_some() {
-        anyhow::bail!("Document already contains entries. Schema can only be added to an empty document.");
+        return Err(DocError::DocumentNotEmpty);
     }
 
     let key = "schema";
@@ -285,7 +394,7 @@ pub async fn add_doc_schema(
             schema.into_bytes(),
         )
         .await
-        .context("Failed to set schema bytes in document")?;
+        .map_err(|_| DocError::FailedToSetSchema)?;
 
     Ok(updated_hash.to_string())
 }
@@ -310,21 +419,23 @@ pub async fn set_entry(
     author_id: String,
     key: String,
     value: String,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let author = SS58AuthorId::decode(&author_id)
-        .with_context(|| format!("Failed to decode author ID {author_id}"))?;
+        .map_err(|_| DocError::InvalidAuthorIdFormat)?;
 
     // validate key
     validate_key(&key, true)
         .await
-        .context("Failed to validate key")?;
+        .map_err(|_| DocError::FailedToValidateKey)?;
 
     // get doc
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     // check if there is any value corresponding to the key 'schema' 
     let schema_key = "schema";
@@ -334,7 +445,7 @@ pub async fn set_entry(
     if let Some(schema_entry) = doc
         .get_exact(author, encoded_schema_key.clone(), true)
         .await
-        .context("Failed to get schema entry")?
+        .map_err(|_| DocError::FailedToGetSchemaEntry)?
     {
         // get the hash of that entry
         let schema_entry_hash = schema_entry.content_hash();
@@ -343,22 +454,24 @@ pub async fn set_entry(
         let schema_to_bytes = blob_client
             .read_to_bytes(schema_entry_hash)
             .await
-            .context("Failed to read schema blob")?;
+            .map_err(|_| DocError::FailedToReadBlob)?;
 
         // convert the blob data to JSON
-        let schema_str = std::str::from_utf8(&schema_to_bytes)?;
-        let schema_json: Value = serde_json::from_str(schema_str).unwrap();
+        let schema_str = std::str::from_utf8(&schema_to_bytes)
+            .map_err(|_| DocError::FailedToConvertBlobUtf8)?;
+        let schema_json: Value = serde_json::from_str(schema_str)
+            .map_err(|_| DocError::FailedToParseSchemaJson)?;
 
         let validator = validator_for(&schema_json)
-            .context("Failed to create JSON schema validator")?;
+            .map_err(|_| DocError::FailedToCreateSchemaValidator)?;
 
         // convert value to JSON
         let value_json: Value = serde_json::from_str(&value)
-            .context("Failed to convert value to JSON")?;
+            .map_err(|_| DocError::FailedToConvertValueJson)?;
 
         // validate the value against the schema
         if !validator.is_valid(&value_json) {
-            return Err(anyhow::anyhow!("Value does not match schema"));
+            return Err(DocError::ValueDoesNotMatchSchema);
         }
     }
 
@@ -367,7 +480,7 @@ pub async fn set_entry(
     let hash = doc
         .set_bytes(author, encoded_key, value.into_bytes())
         .await
-        .context("Failed to set entry bytes in document")?;
+        .map_err(|_| DocError::FailedToSetEntryBytes)?;
 
     Ok(hash.to_string())
 }
@@ -399,52 +512,54 @@ pub async fn set_entry_file (
     author_id: String,
     key: String,
     file_path: String,
-) -> anyhow::Result<ImportFileOutcome> {
+) -> anyhow::Result<ImportFileOutcome, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let author = SS58AuthorId::decode(&author_id)
-        .with_context(|| format!("Failed to decode author ID {author_id}"))?;
+        .map_err(|_| DocError::InvalidAuthorIdFormat)?;
 
     validate_key(&key, true)
         .await
-        .context("Failed to validate key")?;
+        .map_err(|_| DocError::FailedToValidateKey)?;
 
     let path = PathBuf::from(file_path);
     if !path.exists() {
-        return Err(anyhow::anyhow!("File does not exist: {:?}", path));
+        return Err(DocError::FileDoesNotExist);
     }
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let schema_key = "schema";
     let encoded_schema_key = encode_key(schema_key.as_bytes());
     let schema_entry = doc
         .get_exact(author, encoded_schema_key.clone(), true)
         .await
-        .context("Failed to get schema entry")?;
+        .map_err(|_| DocError::FailedToGetSchemaEntry)?;
 
     if schema_entry.is_some() {
-        return Err(anyhow::anyhow!("File import not allowed. Cannot add a file to a document with a schema."));
+        return Err(DocError::FileImportNotAllowedWithSchema);
     }
 
     let encoded_key = encode_key(key.clone().as_bytes());
     let progress = doc
         .import_file(author, Bytes::from(encoded_key), &path, false)
         .await
-        .context("Failed to import file")?;
+        .map_err(|_| DocError::FailedToImportFile)?;
 
     let outcome = progress
         .finish()
         .await
-        .context("Failed to finish file import")?;
+        .map_err(|_| DocError::FailedToFinishFileImport)?;
 
     Ok(ImportFileOutcome {
         hash: outcome.hash.to_string(),
         size: outcome.size,
         key: String::from_utf8(outcome.key.to_vec())
-            .context("Failed to convert key to UTF-8")?,
+            .map_err(|_| DocError::FailedToConvertKeyUtf8)?,
     })
 }
 
@@ -485,35 +600,37 @@ pub async fn get_entry(
     author_id: String,
     key: String,
     include_empty: bool,
-) -> anyhow::Result<Option<EntryDetails>> {
+) -> anyhow::Result<Option<EntryDetails>, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let author = SS58AuthorId::decode(&author_id)
-        .with_context(|| format!("Failed to decode author ID {author_id}"))?;
+        .map_err(|_| DocError::InvalidAuthorIdFormat)?;
 
     validate_key(&key, false)
         .await
-        .context("Failed to validate key")?;
+        .map_err(|_| DocError::FailedToValidateKey)?;
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let encoded_key = encode_key(key.as_bytes());
     let entry = doc
         .get_exact(author, encoded_key, include_empty)
         .await
-        .context("Failed to get entry")?;
+        .map_err(|_| DocError::FailedToGetEntry)?;
 
     if let Some(entry) = entry {
         let decoded_key = decode_key(entry.id().key());
         let encode_author = SS58AuthorId::from_author_id(&entry.id().author())
-            .context("Failed to encode author ID")?;
+            .map_err(|_| DocError::FailedToEncodeAuthorId)?;
 
         let id_details = EntryIdDetails {
             doc: entry.id().namespace().to_string(),
             key: String::from_utf8(decoded_key)
-                .context("Failed to decode entry key")?,
+                .map_err(|_| DocError::FailedToDecodeEntryKey)?,
             author: encode_author.as_ss58().to_string(),
         };
 
@@ -543,13 +660,13 @@ pub async fn get_entry(
 pub async fn get_entry_blob(
     blobs: Arc<Blobs<Store>>,
     hash: String,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<String, DocError> {
     let hash = Hash::from_str(&hash)
-        .with_context(|| format!("Failed to parse hash {hash}"))?;
+        .map_err(|_| DocError::FailedToParseHash)?;
 
     let content = get_blob_entry(blobs, hash)
         .await
-        .context("Failed to get blob entry")?;
+        .map_err(|_| DocError::FailedToReadBlob)?;
 
     Ok(content)
 }
@@ -574,22 +691,23 @@ pub async fn get_entries(
     docs: Arc<Docs<Store>>,
     doc_id: String,
     query_params: serde_json::Value,
-) -> anyhow::Result<Vec<EntryDetails>> {
+) -> anyhow::Result<Vec<EntryDetails>, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let mut query = Query::all();
 
     if let Some(author_id_str) = query_params.get("author_id").and_then(|v| v.as_str()) {
-        let author_id = SS58AuthorId::decode(author_id_str)?;
+        let author_id = SS58AuthorId::decode(author_id_str)
+            .map_err(|_| DocError::InvalidAuthorIdFormat)?;
         query = query.author(author_id);
     }
 
     if let Some(key) = query_params.get("key").and_then(|v| v.as_str()) {
         validate_key(key, false)
             .await
-            .context("Failed to validate key")?;
+            .map_err(|_| DocError::FailedToValidateKey)?;
         let encoded_key = encode_key(key.as_bytes());
         query = query.key_exact(encoded_key);
     }
@@ -615,7 +733,7 @@ pub async fn get_entries(
             "author" => SortBy::KeyAuthor,
             "key" => SortBy::AuthorKey,
             _ => {
-                return Err(anyhow::anyhow!("Invalid sort_by value: {sort_by}"));
+                return Err(DocError::InvalidSortByValue);
             }
         };
 
@@ -624,7 +742,7 @@ pub async fn get_entries(
                 "ascending" => SortDirection::Asc,
                 "descending" => SortDirection::Desc,
                 _ => {
-                    return Err(anyhow::anyhow!("Invalid sort_direction value: {sort_direction}"));
+                    return Err(DocError::InvalidSortDirectionValue);
                 }
             };
             query = query.sort_by(sort_by, sort_direction);
@@ -633,26 +751,28 @@ pub async fn get_entries(
         }
     }
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let mut entries = Vec::new();
     let mut entries_stream = doc
         .get_many(query)
         .await
-        .with_context(|| format!("Failed to get entries for document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToGetEntries)?;
 
     while let Some(entry) = entries_stream.next().await {
         let entry = entry
-            .with_context(|| format!("Failed to get entry for document {namespace_id}"))?;
+            .map_err(|_| DocError::FailedToGetEntry)?;
 
         let encode_author = SS58AuthorId::from_author_id(&entry.id().author())
-            .context("Failed to encode author ID")?;
+            .map_err(|_| DocError::FailedToEncodeAuthorId)?;
         let decoded_key = decode_key(entry.id().key());
 
         let id_details = EntryIdDetails {
             doc: entry.id().namespace().to_string(),
             key: String::from_utf8(decoded_key)
-                .context("Failed to decode entry key")?,
+                .map_err(|_| DocError::FailedToDecodeEntryKey)?,
             author: encode_author.as_ss58().to_string(),
         };
         
@@ -686,33 +806,35 @@ pub async fn delete_entry(
     doc_id: String,
     author_id: String,
     key: String,
-) -> anyhow::Result<usize> {
+) -> anyhow::Result<usize, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
     let author = SS58AuthorId::decode(&author_id)
-        .with_context(|| format!("Failed to decode author ID {author_id}"))?;
+        .map_err(|_| DocError::InvalidAuthorIdFormat)?;
 
     validate_key(&key, true)
         .await
-        .context("Failed to validate key")?;
+        .map_err(|_| DocError::FailedToValidateKey)?;
 
-    let doc = get_document(docs.clone(), namespace_id).await?;
+    let doc = get_document(docs.clone(), namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let encoded_key = encode_key(key.clone().as_bytes());
     let entry = get_entry(docs, doc_id.clone(), author_id.clone(), key.clone(), false)
         .await
-        .with_context(|| format!("Failed to get entry for document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToGetEntry)?;
 
     if entry.is_none() {
-        return Err(anyhow::anyhow!("Entry not found for key '{key}'"));
+        return Err(DocError::EntryNotFound);
     }
 
     let delete = doc
         .del(author, encoded_key)
         .await
-        .with_context(|| format!("Failed to delete entry for document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToDeleteEntry)?;
 
     Ok(delete)
 }
@@ -728,16 +850,18 @@ pub async fn delete_entry(
 pub async fn leave(
     docs: Arc<Docs<Store>>,
     doc_id: String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<(), DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     doc.leave()
         .await
-        .with_context(|| format!("Failed to leave document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToLeaveDocument)?;
 
     Ok(())
 }
@@ -753,17 +877,19 @@ pub async fn leave(
 pub async fn status (
     docs: Arc<Docs<Store>>,
     doc_id: String,
-) -> anyhow::Result<OpenState> {
+) -> anyhow::Result<OpenState, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let status = doc
         .status()
         .await
-        .with_context(|| format!("Failed to get status of document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToGetDocumentStatus)?;
 
     Ok(status)
 }
@@ -779,17 +905,19 @@ pub async fn status (
 pub async fn get_download_policy(
     docs: Arc<Docs<Store>>,
     doc_id: String,
-) -> anyhow::Result<serde_json::Value> {
+) -> anyhow::Result<serde_json::Value, DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let download_policy = doc
         .get_download_policy()
         .await
-        .with_context(|| format!("Failed to get download policy for document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToGetDownloadPolicy)?;
 
     let api_policy = ApiDownloadPolicy(download_policy);
 
@@ -809,19 +937,21 @@ pub async fn set_download_policy(
     docs: Arc<Docs<Store>>,
     doc_id: String,
     download_policy: serde_json::Value,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<(), DocError> {
     let namespace_id_vec = decode_doc_id(&doc_id)
-        .with_context(|| format!("Failed to decode document ID {doc_id}"))?;
+        .map_err(|_| DocError::InvalidDocumentIdFormat)?;
     let namespace_id = NamespaceId::from(namespace_id_vec);
 
-    let doc = get_document(docs, namespace_id).await?;
+    let doc = get_document(docs, namespace_id)
+        .await
+        .map_err(|_| DocError::DocumentNotFound)?;
 
     let api_policy = ApiDownloadPolicy::from_json(&download_policy)
-        .with_context(|| format!("Failed to decode download policy"))?;
+        .map_err(|_| DocError::FailedToDecodeDownloadPolicy)?;
 
     doc.set_download_policy(api_policy.0)
         .await
-        .with_context(|| format!("Failed to set download policy for document {namespace_id}"))?;
+        .map_err(|_| DocError::FailedToSetDownloadPolicy)?;
 
     Ok(())
 }
@@ -960,9 +1090,6 @@ mod tests {
         let namespace_id = NamespaceId::from(namespace_id_vec);
 
         let doc = get_document(docs.clone(), namespace_id).await?;
-        println!("Document: {:?}", doc);
-        println!("{:?}", doc.id());
-        println!("{}", doc.id().to_string());
 
         assert_eq!(doc.id(), namespace_id);
 
@@ -1005,12 +1132,7 @@ mod tests {
 
         let result = drop_doc(docs.clone(), invalid_doc_id.to_string()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(
-            error_str.contains("Failed to decode document ID"),
-            "Expected decode error, got: {}",
-            error_str
-        );
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1079,12 +1201,7 @@ mod tests {
             AddrInfoOptions::Addresses,
         ).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(
-            error_str.contains("Failed to decode document ID"),
-            "Expected decode error, got: {}",
-            error_str
-        );
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1103,12 +1220,7 @@ mod tests {
 
         let result = join_doc(docs.clone(), invalid_ticket.to_string()).await;
 
-        let error_str = format!("{:?}", result.unwrap_err());
-        assert!(
-            error_str.contains("Failed to parse document ticket"),
-            "Expected decode error, got: {}",
-            error_str
-        );
+        assert!(matches!(result, Err(DocError::InvalidDocumentTicketFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1165,8 +1277,7 @@ mod tests {
             "{}".into(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1192,8 +1303,7 @@ mod tests {
             "this is not valid json".into(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to serialize schema to JSON"));
+        assert!(matches!(result, Err(DocError::FailedToSerializeSchema)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1224,8 +1334,7 @@ mod tests {
             invalid_schema.into(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate schema"));
+        assert!(matches!(result, Err(DocError::FailedToValidateSchema)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1256,8 +1365,7 @@ mod tests {
             valid_schema.into(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+        assert!(matches!(result, Err(DocError::InvalidAuthorIdFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1294,8 +1402,7 @@ mod tests {
             valid_schema.into(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Document already contains entries. Schema can only be added to an empty document."));
+        assert!(matches!(result, Err(DocError::DocumentNotEmpty)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1366,8 +1473,7 @@ mod tests {
             "value".to_string(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1394,8 +1500,7 @@ mod tests {
             "value".to_string(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+        assert!(matches!(result, Err(DocError::InvalidAuthorIdFormat)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1424,8 +1529,7 @@ mod tests {
             "value".to_string(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+        assert!(matches!(result, Err(DocError::FailedToValidateKey)));
 
         // cleanup
         delete_all_docs(docs).await?;
@@ -1470,7 +1574,7 @@ mod tests {
         let add_schema_result = add_doc_schema(docs.clone(), author.clone(), doc.clone(), valid_schema.to_string()).await;
         assert!(add_schema_result.is_ok());
 
-        let valid_entry = r#"{
+        let invalid_entry = r#"{
             "owner": "Dhiway",
             "name": "Cyra",
             "terms_and_conditions": "Agreed"
@@ -1482,11 +1586,11 @@ mod tests {
             doc.clone(),
             author.clone(),
             "entry".to_string(),
-            valid_entry.to_string(),
+            invalid_entry.to_string(),
         ).await;
-        assert!(set_entry_result.is_err());
-        assert!(format!("{:?}", set_entry_result.unwrap_err()).contains("Value does not match schema"));
         
+        assert!(matches!(set_entry_result, Err(DocError::ValueDoesNotMatchSchema)));
+
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
@@ -1568,8 +1672,8 @@ mod tests {
             "entry".to_string(),
             "path".to_string(),
         ).await;
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1592,8 +1696,8 @@ mod tests {
             "entry".to_string(),
             "path".to_string(),
         ).await;
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+        
+        assert!(matches!(result, Err(DocError::InvalidAuthorIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1618,9 +1722,9 @@ mod tests {
             "schema".to_string(), // can use 'some key' 
             "path".to_string(),
         ).await;
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
         
+        assert!(matches!(result, Err(DocError::FailedToValidateKey)));
+
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
@@ -1644,8 +1748,8 @@ mod tests {
             "entry".to_string(), // can use 'some key' 
             "path".to_string(),
         ).await;
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("File does not exist:"));
+        
+        assert!(matches!(result, Err(DocError::FileDoesNotExist)));
         
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1691,8 +1795,8 @@ mod tests {
             "entry".to_string(), // can use 'some key' 
             file_path.to_str().unwrap().to_string(),
         ).await;
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("File import not allowed. Cannot add a file to a document with a schema."));
+        
+        assert!(matches!(result, Err(DocError::FileImportNotAllowedWithSchema)));
 
         if file_path.exists() {
             fs::remove_file(&file_path).await?;
@@ -1752,8 +1856,7 @@ mod tests {
             false,
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1778,8 +1881,7 @@ mod tests {
             false,
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+        assert!(matches!(result, Err(DocError::FailedToValidateKey)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1801,8 +1903,7 @@ mod tests {
             false,
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+        assert!(matches!(result, Err(DocError::InvalidAuthorIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1884,8 +1985,7 @@ mod tests {
 
         let result = get_entry_blob(blobs.clone(), invalid_hash).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to parse hash"));
+        assert!(matches!(result, Err(DocError::FailedToParseHash)));
 
         fs::remove_dir_all("Test").await?;
         iroh_node.router.shutdown().await?;
@@ -1910,8 +2010,7 @@ mod tests {
             query_params
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1939,8 +2038,7 @@ mod tests {
             query_params
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+        assert!(matches!(result, Err(DocError::FailedToValidateKey)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1968,8 +2066,7 @@ mod tests {
             query_params
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Invalid sort_by value:"));
+        assert!(matches!(result, Err(DocError::InvalidSortByValue)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -1997,8 +2094,7 @@ mod tests {
             query_params
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Invalid sort_direction value:"));
+        assert!(matches!(result, Err(DocError::InvalidSortDirectionValue)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2058,8 +2154,7 @@ mod tests {
             "Key".to_string(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2080,8 +2175,7 @@ mod tests {
             "Key".to_string(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode author ID"));
+        assert!(matches!(result, Err(DocError::InvalidAuthorIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2103,8 +2197,7 @@ mod tests {
             "schema".to_string(), // can use 'some key'
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to validate key"));
+        assert!(matches!(result, Err(DocError::FailedToValidateKey)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2126,8 +2219,7 @@ mod tests {
             "Key".to_string(),
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Entry not found for key"));
+        assert!(matches!(result, Err(DocError::EntryNotFound)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2203,7 +2295,7 @@ mod tests {
 
     // get_download_policy and set_download_policy
     #[tokio::test]
-    pub async fn test_get_download_purpose_fails_on_incorrect_document_id() -> Result<()> {
+    pub async fn test_get_download_policy_fails_on_incorrect_document_id() -> Result<()> {
         let iroh_node = setup_node().await?;
         let docs = iroh_node.docs.clone();
         
@@ -2212,8 +2304,7 @@ mod tests {
             "incorrect_doc_id".to_string()
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2222,7 +2313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn test_set_download_purpose_fails_on_incorrect_document_id() -> Result<()> {
+    pub async fn test_set_download_policy_fails_on_incorrect_document_id() -> Result<()> {
         let iroh_node = setup_node().await?;
         let docs = iroh_node.docs.clone();
 
@@ -2237,8 +2328,7 @@ mod tests {
             download_policy
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode document ID"));
+        assert!(matches!(result, Err(DocError::InvalidDocumentIdFormat)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
@@ -2262,8 +2352,7 @@ mod tests {
             incorrect_download_policy
         ).await;
 
-        assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).contains("Failed to decode download policy"));
+        assert!(matches!(result, Err(DocError::FailedToDecodeDownloadPolicy)));
 
         delete_all_docs(docs).await?;
         fs::remove_dir_all("Test").await?;
