@@ -5,7 +5,8 @@ members = [
     "helpers",
     "node",
     "router",
-    "bin"
+    "bin",
+    "gateway"
 ]
 
 resolver = "2"

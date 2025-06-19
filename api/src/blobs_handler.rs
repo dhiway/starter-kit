@@ -6,9 +6,10 @@ use iroh_blobs::{
     util::SetTagOption,
     rpc::client::blobs::DownloadOptions,
 };
+use gateway::access_control::check_node_id_and_domain_header;
 
 use iroh::NodeAddr;
-use axum::{extract::State, Json};
+use axum::{extract::State, Json, http::HeaderMap};
 use bytes::Bytes;
 use serde::Deserialize;
 use serde::Serialize;
@@ -186,8 +187,11 @@ pub struct ExportBlobResponse {
 // Handler to add blob bytes
 pub async fn add_blob_bytes_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<AddBlobBytesRequest>,
 ) -> Result<Json<AddBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.content.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Content cannot be empty".to_string()));
@@ -212,8 +216,11 @@ pub async fn add_blob_bytes_handler(
 // Handler to add blob with a name
 pub async fn add_blob_named_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<AddBlobNamedRequest>,
 ) -> Result<Json<AddBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.content.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Content cannot be empty".to_string()));
@@ -242,8 +249,11 @@ pub async fn add_blob_named_handler(
 // Handler to add blob from a file path
 pub async fn add_blob_from_path_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<AddBlobFromPathRequest>,
 ) -> Result<Json<AddBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.file_path.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "File path cannot be empty".to_string()));
@@ -271,8 +281,11 @@ pub async fn add_blob_from_path_handler(
 // Handler to list blobs
 pub async fn list_blobs_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<ListBlobsRequest>,
 ) -> Result<Json<Vec<BlobInfoResponse>>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.page_size == 0 {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Page size must be greater than 0".to_string()));
@@ -300,8 +313,11 @@ pub async fn list_blobs_handler(
 // Handler to get a blob by hash
 pub async fn get_blob_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GetBlobRequest>,
 ) -> Result<Json<GetBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
@@ -319,8 +335,11 @@ pub async fn get_blob_handler(
 // Handler to check the status of a blob
 pub async fn status_blob_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<StatusBlobRequest>,
 ) -> Result<Json<StatusBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
@@ -338,8 +357,11 @@ pub async fn status_blob_handler(
 // Handler to check if a blob exists
 pub async fn has_blob_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<HasBlobRequest>,
 ) -> Result<Json<HasBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
@@ -357,8 +379,11 @@ pub async fn has_blob_handler(
 // Handler to download a blob
 pub async fn download_blob_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<DownloadRequest>,
 ) -> Result<Json<DownloadOutcomeResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
@@ -384,8 +409,11 @@ pub async fn download_blob_handler(
 // This will not work right now as we have not implemented WarpOption for any function that can create a blob. If 'download_hash_sequence' is required then would need to add that. I think it would be a good feature to have, as then the user could create collections.
 pub async fn download_hash_sequence_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<DownloadRequest>,
 ) -> Result<Json<DownloadOutcomeResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
@@ -410,8 +438,11 @@ pub async fn download_hash_sequence_handler(
 // Handler to download a blob with options
 pub async fn download_with_options_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<DownloadWithOptionsRequest>,
 ) -> Result<Json<DownloadOutcomeResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if req.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));
@@ -483,7 +514,10 @@ pub async fn download_with_options_handler(
 // Handler to list tags
 pub async fn list_tags_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<TagInfoResponse>>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     match list_tags(state.blobs.clone()).await {
         Ok(tags) => {
             let response = tags
@@ -507,8 +541,11 @@ pub async fn list_tags_handler(
 // Handler to delete a tag
 pub async fn delete_tag_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<DeleteTagRequest>,
 ) -> Result<Json<DeleteTagResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if req.tag_name.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Tag name cannot be empty".to_string()));
@@ -525,8 +562,11 @@ pub async fn delete_tag_handler(
 // Handler to export a blob to a file
 pub async fn export_blob_to_file_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<ExportBlobRequest>,
 ) -> Result<Json<ExportBlobResponse>, (axum::http::StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if req.hash.is_empty() {
         return Err((axum::http::StatusCode::BAD_REQUEST, "Hash cannot be empty".to_string()));

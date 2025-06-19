@@ -12,7 +12,7 @@ use std::path::PathBuf;
 // # Run with persistent path and custom secret key
 // cargo run -- --path <path> --secret-key <your_secret_key>
 // ```
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(name = "Starter Kit")]
 #[command(about = "A starter kit for data providers", long_about = None)]
 pub struct CliArgs {

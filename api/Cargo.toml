@@ -20,3 +20,4 @@ regex = "1.11.1"
 
 core = { path = "../core" }
 helpers = { path = "../helpers" }
+gateway = { path = "../gateway" }
