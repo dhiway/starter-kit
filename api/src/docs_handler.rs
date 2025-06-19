@@ -1,9 +1,10 @@
 use core::docs::*;
 use helpers::state::AppState;
+use gateway::access_control::check_node_id_and_domain_header;
 
 use serde::{Deserialize, Serialize};
 use axum::{extract::State, Json};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, HeaderMap};
 use std::str::FromStr;
 use iroh_docs::{NamespaceId, CapabilityKind};
 use iroh_docs::rpc::client::docs::ShareMode;
@@ -252,8 +253,11 @@ pub struct GetDownloadPolicyResponse {
 // Handler for getting a document
 pub async fn get_document_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GetDocumentRequest>,
 ) -> Result<Json<GetDocumentResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -274,8 +278,11 @@ pub async fn get_document_handler(
 // Handler for getting a blob entry
 pub async fn get_entry_blob_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GetEntryBlobRequest>,
 ) -> Result<Json<GetEntryBlobResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.hash.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "hash cannot be empty".to_string()));
@@ -290,7 +297,10 @@ pub async fn get_entry_blob_handler(
 // Handler for creating a new document
 pub async fn create_doc_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<CreateDocResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     match create_doc(state.docs.clone()).await {
         Ok(doc_id) => Ok(Json(CreateDocResponse { doc_id })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
@@ -300,7 +310,10 @@ pub async fn create_doc_handler(
 // Handler for listing documents
 pub async fn list_docs_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<ListDocsResponse>>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     match list_docs(state.docs.clone()).await {
         Ok(docs) => {
             let response = docs
@@ -327,8 +340,11 @@ pub async fn list_docs_handler(
 // Handler for dropping a document
 pub async fn drop_doc_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<DropDocRequest>,
 ) -> Result<Json<DropDocResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -345,8 +361,11 @@ pub async fn drop_doc_handler(
 // Handler for sharing a document
 pub async fn share_doc_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<ShareDocRequest>,
 ) -> Result<Json<ShareDocResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -383,8 +402,11 @@ pub async fn share_doc_handler(
 // Handler for joining a document
 pub async fn join_doc_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<JoinDocRequest>,
 ) -> Result<Json<JoinDocResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.ticket.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "ticket cannot be empty".to_string()));
@@ -399,8 +421,11 @@ pub async fn join_doc_handler(
 // Handler for closing a document
 pub async fn close_doc_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CloseDocRequest>,
 ) -> Result<Json<CloseDocResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -432,8 +457,11 @@ pub async fn close_doc_handler(
 // { \"type\": \"object\", \"properties\": { \"owner\": { \"type\": \"string\" } }, \"required\": [\"owner\"] }
 pub async fn add_doc_schema_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<AddDocSchemaRequest>,
 ) -> Result<Json<AddDocSchemaResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.author_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
@@ -462,8 +490,11 @@ pub async fn add_doc_schema_handler(
 // "value": "{\"owner\": \"Dhiway\"}"
 pub async fn set_entry_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<SetEntryRequest>,
 ) -> Result<Json<SetEntryResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -496,8 +527,11 @@ pub async fn set_entry_handler(
 // Handler for setting an entry in a document from a file
 pub async fn set_entry_file_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<SetEntryFileRequest>,
 ) -> Result<Json<SetEntryFileResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -533,8 +567,11 @@ pub async fn set_entry_file_handler(
 // Handler for getting an entry from a document
 pub async fn get_entry_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GetEntryRequest>,
 ) -> Result<Json<GetEntryResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -571,8 +608,11 @@ pub async fn get_entry_handler(
 // Handler for getting multiple entries from a document
 pub async fn get_entries_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GetEntriesRequest>,
 ) -> Result<Json<Vec<GetEntryResponse>>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -609,8 +649,11 @@ pub async fn get_entries_handler(
 // Handler for deleting an entry from a document
 pub async fn delete_entry_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<DeleteEntryRequest>,
 ) -> Result<Json<DeleteEntryResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -636,8 +679,11 @@ pub async fn delete_entry_handler(
 // Handler for leaving a document
 pub async fn leave_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<LeaveRequest>,
 ) -> Result<Json<LeaveResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -654,8 +700,11 @@ pub async fn leave_handler(
 // Handler for getting the status of a document
 pub async fn status_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<StatusRequest>,
 ) -> Result<Json<StatusResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -674,8 +723,11 @@ pub async fn status_handler(
 // Handler for setting the download policy of a document
 pub async fn set_download_policy_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<SetDownloadPolicyRequest>,
 ) -> Result<Json<SetDownloadPolicyResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -700,8 +752,11 @@ pub async fn set_download_policy_handler(
 // Handler for getting the download policy of a document
 pub async fn get_download_policy_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GetDownloadPolicyRequest>,
 ) -> Result<Json<GetDownloadPolicyResponse>, (StatusCode, String)> {
+    check_node_id_and_domain_header(&headers)?;
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));

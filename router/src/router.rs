@@ -2,6 +2,7 @@ use api::{
     authors_handler::*,
     blobs_handler::*,
     docs_handler::*,
+    gateway_handler::*
 };
 use helpers::state::AppState;
 
@@ -17,7 +18,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/blobs/get-blob", get(get_blob_handler))
         .route("/blobs/status-blob", get(status_blob_handler))
         .route("/blobs/has-blob", get(has_blob_handler))
-        .route("/blobs/download-blob", get(download_blob_handler))
+        .route("/blobs/download-blob", post(download_blob_handler))
         .route("/blobs/download-hash-sequence", get(download_hash_sequence_handler))
         .route("/blobs/download-with-options", get(download_with_options_handler))
         .route("/blobs/list-tags", get(list_tags_handler))
@@ -47,6 +48,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/docs/status", get(status_handler))
         .route("/docs/set-download-policy", post(set_download_policy_handler))
         .route("/docs/get-download-policy", get(get_download_policy_handler))
+        .route("/gateway/is-node-id-allowed", get(is_node_id_allowed_handler))
+        .route("/gateway/is-domain-allowed", get(is_domain_allowed_handler))
+        .route("/gateway/add-node-id", post(add_node_id_handler))
+        .route("/gateway/remove-node-id", post(remove_node_id_handler))
+        .route("/gateway/add-domain", post(add_domain_handler))
+        .route("/gateway/remove-domain", post(remove_domain_handler))
         .with_state(state)
         .layer(CorsLayer::very_permissive())
 }

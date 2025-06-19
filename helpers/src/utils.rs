@@ -159,3 +159,8 @@ pub async fn validate_key(
 
     Ok(())
 }
+
+pub fn normalize_domain(input: &str) -> Option<String> {
+    let no_scheme = input.trim().trim_start_matches("http://").trim_start_matches("https://");
+    no_scheme.split('/').next().map(|s| s.to_lowercase())
+}

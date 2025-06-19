@@ -15,3 +15,4 @@ axum = { version = "0.7.9", features = ["multipart", "macros"] }
 node = { path = "../node" }
 router = { path = "../router" }
 helpers = { path = "../helpers" }
+gateway = { path = "../gateway" }

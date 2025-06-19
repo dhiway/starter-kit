@@ -386,6 +386,7 @@ pub async fn add_doc_schema(
 
     let key = "schema";
     let encoded_key = encode_key(key.as_bytes());
+    // let encoded_key = key.as_bytes().to_vec();
 
     let updated_hash = doc
         .set_bytes(
