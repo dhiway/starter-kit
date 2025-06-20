@@ -1,0 +1,539 @@
+{
+  "info": {
+    "name": "starter-kit",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:4000" },
+    { "key": "node_id", "value": "your_node_id_here" }
+  ],
+  "item": [
+    {
+      "name": "authors",
+      "item": [
+        {
+          "name": "List Authors",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "url": { "raw": "{{base_url}}/authors/list-authors", "host": ["{{base_url}}"], "path": ["authors", "list-authors"] }
+          }
+        },
+        {
+          "name": "Get Default Author",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "url": { "raw": "{{base_url}}/authors/get-default-author", "host": ["{{base_url}}"], "path": ["authors", "get-default-author"] }
+          }
+        },
+        {
+          "name": "Set Default Author",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/authors/set-default-author", "host": ["{{base_url}}"], "path": ["authors", "set-default-author"] }
+          }
+        },
+        {
+          "name": "Create Author",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "url": { "raw": "{{base_url}}/authors/create-author", "host": ["{{base_url}}"], "path": ["authors", "create-author"] }
+          }
+        },
+        {
+          "name": "Delete Author",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/authors/delete-author", "host": ["{{base_url}}"], "path": ["authors", "delete-author"] }
+          }
+        },
+        {
+          "name": "Verify Author",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/authors/verify-author", "host": ["{{base_url}}"], "path": ["authors", "verify-author"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "blobs",
+      "item": [
+        {
+          "name": "Add Blob Bytes",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"base64_or_string_content\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/add-blob-bytes", "host": ["{{base_url}}"], "path": ["blobs", "add-blob-bytes"] }
+          }
+        },
+        {
+          "name": "Add Blob Named",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"base64_or_string_content\",\n  \"name\": \"tag_name\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/add-blob-named", "host": ["{{base_url}}"], "path": ["blobs", "add-blob-named"] }
+          }
+        },
+        {
+          "name": "Add Blob From Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"file_path\": \"path/to/file\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/add-blob-from-path", "host": ["{{base_url}}"], "path": ["blobs", "add-blob-from-path"] }
+          }
+        },
+        {
+          "name": "List Blobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"page\": 1,\n  \"page_size\": 10\n}" },
+            "url": { "raw": "{{base_url}}/blobs/list-blobs", "host": ["{{base_url}}"], "path": ["blobs", "list-blobs"] }
+          }
+        },
+        {
+          "name": "Get Blob",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/get-blob", "host": ["{{base_url}}"], "path": ["blobs", "get-blob"] }
+          }
+        },
+        {
+          "name": "Status Blob",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/status-blob", "host": ["{{base_url}}"], "path": ["blobs", "status-blob"] }
+          }
+        },
+        {
+          "name": "Has Blob",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/has-blob", "host": ["{{base_url}}"], "path": ["blobs", "has-blob"] }
+          }
+        },
+        {
+          "name": "Download Blob",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\",\n  \"node_id\": \"{{node_id}}\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/download-blob", "host": ["{{base_url}}"], "path": ["blobs", "download-blob"] }
+          }
+        },
+        {
+          "name": "Download Hash Sequence",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\",\n  \"node_id\": \"{{node_id}}\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/download-hash-sequence", "host": ["{{base_url}}"], "path": ["blobs", "download-hash-sequence"] }
+          }
+        },
+        {
+          "name": "Download With Options",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hash\": \"blob_hash\",\n  \"format\": \"Raw\",\n  \"mode\": \"Direct\",\n  \"nodes\": [\"node_id1\", \"node_id2\"],\n  \"tag\": \"Auto\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/blobs/download-with-options", "host": ["{{base_url}}"], "path": ["blobs", "download-with-options"] }
+          }
+        },
+        {
+          "name": "List Tags",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "url": { "raw": "{{base_url}}/blobs/list-tags", "host": ["{{base_url}}"], "path": ["blobs", "list-tags"] }
+          }
+        },
+        {
+          "name": "Delete Tag",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"tag_name\": \"tag_name_here\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/delete-tag", "host": ["{{base_url}}"], "path": ["blobs", "delete-tag"] }
+          }
+        },
+        {
+          "name": "Export Blob To File",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\",\n  \"destination\": \"path/to/destination\"\n}" },
+            "url": { "raw": "{{base_url}}/blobs/export-blob-to-file", "host": ["{{base_url}}"], "path": ["blobs", "export-blob-to-file"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "docs",
+      "item": [
+        {
+        "name": "Get Document",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/get-document", "host": ["{{base_url}}"], "path": ["docs", "get-document"] }
+        }
+        },
+        {
+        "name": "Get Entry Blob",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"hash\": \"hash_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/get-entry-blob", "host": ["{{base_url}}"], "path": ["docs", "get-entry-blob"] }
+        }
+        },
+        {
+        "name": "Create Document",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "url": { "raw": "{{base_url}}/docs/create-document", "host": ["{{base_url}}"], "path": ["docs", "create-document"] }
+        }
+        },
+        {
+        "name": "List Docs",
+        "request": {
+            "method": "GET",
+            "header": [
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "url": { "raw": "{{base_url}}/docs/list-docs", "host": ["{{base_url}}"], "path": ["docs", "list-docs"] }
+        }
+        },
+        {
+        "name": "Drop Doc",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/drop-doc", "host": ["{{base_url}}"], "path": ["docs", "drop-doc"] }
+        }
+        },
+        {
+        "name": "Share Doc",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"mode\": \"write\",\n  \"addr_options\": \"relay\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/share-doc", "host": ["{{base_url}}"], "path": ["docs", "share-doc"] }
+        }
+        },
+        {
+        "name": "Join Doc",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"ticket\": \"ticket_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/join-doc", "host": ["{{base_url}}"], "path": ["docs", "join-doc"] }
+        }
+        },
+        {
+        "name": "Close Doc",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/close-doc", "host": ["{{base_url}}"], "path": ["docs", "close-doc"] }
+        }
+        },
+        {
+        "name": "Add Doc Schema",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\",\n  \"doc_id\": \"doc_id_here\",\n  \"schema\": \"{\\\"type\\\":\\\"object\\\",...}\" \n}" },
+            "url": { "raw": "{{base_url}}/docs/add-doc-schema", "host": ["{{base_url}}"], "path": ["docs", "add-doc-schema"] }
+        }
+        },
+        {
+        "name": "Set Entry",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\",\n  \"value\": \"value_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/set-entry", "host": ["{{base_url}}"], "path": ["docs", "set-entry"] }
+        }
+        },
+        {
+        "name": "Set Entry File",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\",\n  \"file_path\": \"path/to/file\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/set-entry-file", "host": ["{{base_url}}"], "path": ["docs", "set-entry-file"] }
+        }
+        },
+        {
+        "name": "Get Entry",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\",\n  \"include_empty\": false\n}" },
+            "url": { "raw": "{{base_url}}/docs/get-entry", "host": ["{{base_url}}"], "path": ["docs", "get-entry"] }
+        }
+        },
+        {
+        "name": "Get Entries",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"query_params\": \"{\\\"key\\\":\\\"value\\\"}\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/get-entries", "host": ["{{base_url}}"], "path": ["docs", "get-entries"] }
+        }
+        },
+        {
+        "name": "Delete Entry",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/delete-entry", "host": ["{{base_url}}"], "path": ["docs", "delete-entry"] }
+        }
+        },
+        {
+        "name": "Leave Document",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/leave", "host": ["{{base_url}}"], "path": ["docs", "leave"] }
+        }
+        },
+        {
+        "name": "Status",
+        "request": {
+            "method": "GET",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/status", "host": ["{{base_url}}"], "path": ["docs", "status"] }
+        }
+        },
+        {
+        "name": "Set Download Policy",
+        "request": {
+            "method": "POST",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"download_policy\": \"{\\\"policy\\\":\\\"value\\\"}\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/set-download-policy", "host": ["{{base_url}}"], "path": ["docs", "set-download-policy"] }
+        }
+        },
+        {
+        "name": "Get Download Policy",
+        "request": {
+            "method": "GET",
+            "header": [
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
+            "url": { "raw": "{{base_url}}/docs/get-download-policy", "host": ["{{base_url}}"], "path": ["docs", "get-download-policy"] }
+        }
+        }
+      ]
+    },
+    {
+      "name": "gateway",
+      "item": [
+        {
+          "name": "Is Node ID Allowed",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"node_id\": \"{{node_id}}\"\n}" },
+            "url": { "raw": "{{base_url}}/gateway/is-node-id-allowed", "host": ["{{base_url}}"], "path": ["gateway", "is-node-id-allowed"] }
+          }
+        },
+        {
+          "name": "Is Domain Allowed",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"domain\": \"https://yourdomain.com\"\n}" },
+            "url": { "raw": "{{base_url}}/gateway/is-domain-allowed", "host": ["{{base_url}}"], "path": ["gateway", "is-domain-allowed"] }
+          }
+        },
+        {
+          "name": "Add Node ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"node_id\": \"{{node_id}}\"\n}" },
+            "url": { "raw": "{{base_url}}/gateway/add-node-id", "host": ["{{base_url}}"], "path": ["gateway", "add-node-id"] }
+          }
+        },
+        {
+          "name": "Remove Node ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"node_id\": \"{{node_id}}\"\n}" },
+            "url": { "raw": "{{base_url}}/gateway/remove-node-id", "host": ["{{base_url}}"], "path": ["gateway", "remove-node-id"] }
+          }
+        },
+        {
+          "name": "Add Domain",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"domain\": \"https://yourdomain.com\"\n}" },
+            "url": { "raw": "{{base_url}}/gateway/add-domain", "host": ["{{base_url}}"], "path": ["gateway", "add-domain"] }
+          }
+        },
+        {
+          "name": "Remove Domain",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"domain\": \"https://yourdomain.com\"\n}" },
+            "url": { "raw": "{{base_url}}/gateway/remove-domain", "host": ["{{base_url}}"], "path": ["gateway", "remove-domain"] }
+          }
+        }
+      ]
+    }
+  ]
+}
