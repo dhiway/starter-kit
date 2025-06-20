@@ -5,14 +5,17 @@ This directory contains detailed documentation for all available HTTP API endpoi
 
 ## Available API Docs
 
-- [Authors API](./authors-api.md)  
+- [Authors API](./api/authors-api.md)  
   Manage identities and permissions. Create, list, set default, and verify authors.
 
-- [Blobs API](./blobs-api.md)  
+- [Blobs API](./api/blobs-api.md)  
   Store, retrieve, list, tag, and manage raw binary data (blobs).
 
-- [Documents API](./docs-api.md)  
+- [Documents API](./api/docs-api.md)  
   Create, share, join, and manage key-value documents and their entries.
+
+- [Gateway API](./api/gateway-api.md)
+  Manage allowed node IDs and domains and check for access permissions for APIs.
 
 ---
 

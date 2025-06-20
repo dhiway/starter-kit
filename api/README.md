@@ -1,7 +1,7 @@
 # 🌐 API Module
 
 This folder contains the HTTP API handler functions for the Starter Kit backend.  
-Each file here (`authors_handler.rs`, `blobs_handler.rs`, `docs_handler.rs`) acts as a bridge between the core business logic and the web server, exposing the main features of the system as RESTful endpoints.
+Each file here (`authors_handler.rs`, `blobs_handler.rs`, `docs_handler.rs`, `gateway_handler.rs`) acts as a bridge between the core business logic and the web server, exposing the main features of the system as RESTful endpoints.
 
 ---
 
@@ -15,6 +15,9 @@ Each file here (`authors_handler.rs`, `blobs_handler.rs`, `docs_handler.rs`) act
 
 - **`docs_handler.rs`**  
   Handlers for document management: create, share, join, add entries, enforce schemas, and more.
+
+- **`gateway_handler.rs`**  
+  Handlers for access control: manage allowed node IDs and domains, and check access for incoming requests.
 
 ---
 
@@ -34,6 +37,7 @@ For detailed documentation of all available endpoints, request/response formats,
 - [Authors API](../docs/api/authors-api.md)
 - [Blobs API](../docs/api/blobs-api.md)
 - [Documents API](../docs/api/docs-api.md)
+- [Gateay API](..docs/api/gateway-api.md)
 
 ---
 
