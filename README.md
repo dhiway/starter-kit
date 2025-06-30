@@ -118,6 +118,27 @@ See the [API Documentation](./docs/) for full details and examples.
 
 ---
 
+## 🧪 Running Tests
+
+You can run the test suite using the following commands:
+
+- **Run all tests sequentially with logs (recommended for debugging):**
+  ```bash
+  cargo test -- --test-threads=1 --nocapture
+  ```
+- **Run all tests sequentially (recommended for CI and most use cases):**
+  ```bash
+  cargo test -- --test-threads=1
+  ```
+- **Run tests from a specific file/module with logs:**
+  ```bash
+  cargo test <docs|blobs|authors> -- --test-threads=1 --nocapture
+  ```
+  Replace `<docs|blobs|authors>` with the name of the module or test function you want to run.
+  Remove `--nocapture` to run without logs.
+
+---
+
 ## 🧑‍💻 Contributing
 
 Contributions are welcome! Fork the repo, create a branch, and submit a pull request.

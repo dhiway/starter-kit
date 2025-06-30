@@ -25,8 +25,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Initialize gateway
     let path = args.path.unwrap();
-    let path_str = path.to_str().unwrap();
-    let (mut allowed_node_ids, allowed_domains) = init_access_control(path_str).await?;
+    let path_str = path.to_string();
+    let (mut allowed_node_ids, allowed_domains) = init_access_control(&path_str.clone()).await?;
 
     // Ensure self NodeId is added on first run
     ensure_self_node_id_allowed(
@@ -44,8 +44,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Start frontend
     // start_frontend();
 
-    println!("Iroh node started!");
-    println!("Your NodeId: {}", iroh_node.node_id);
+    println!(
+        "✅ Iroh node started successfully!\n🔗 Your NodeId: {}\n",
+        iroh_node.node_id
+    );
 
     let state = AppState {
         blobs: iroh_node.blobs.clone(),
@@ -55,16 +57,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = create_router(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:4001").await?;
-    println!("Server started on http://localhost:4001");
+    println!("🚀 Server is live at: http://localhost:4001\n");
 
-    axum::serve(listener, app).await?;
-    
-    println!("Press Ctrl+C to shut down...");
+    println!("🛑 Press Ctrl+C to shut down the server...\n");
 
-    // Wait for Ctrl+C signal
-    signal::ctrl_c().await?;
-    println!("\nShutdown signal received. Exiting...");
-    iroh_node.router.shutdown().await?;
+    let shutdown_signal = async {
+        signal::ctrl_c().await.expect("failed to listen for event");
+        println!("\n👋 Shutdown signal received. Exiting gracefully...\n");
+    };
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
 
     Ok(())
 }

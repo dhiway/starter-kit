@@ -89,7 +89,11 @@ async fn save(filename: &str, set: &HashSet<String>) {
 
 pub async fn ensure_self_node_id_allowed(path: &str, node_id: String, node_ids: &mut HashSet<String>) -> anyhow::Result<()> {
     if node_ids.is_empty() {
-        println!("First run: Adding node's own NodeId to allowed list.");
+        println!(
+            "🟢 First run: Added this node's own NodeId ({}) to the allowed list.\n\
+             ℹ️  To allow other nodes to interact with your data, add their NodeIds using the appropriate API.\n",
+            node_id
+        );
         node_ids.insert(node_id.clone());
         save_set(path, "allowed_node_ids.json", node_ids).await?;
     }
