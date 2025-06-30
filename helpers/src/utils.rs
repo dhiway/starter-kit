@@ -9,6 +9,7 @@ use anyhow::{anyhow, Result};
 use iroh_docs::store::{DownloadPolicy, FilterKind};
 use serde_json;
 use regex::Regex;
+use axum::http::{HeaderMap, StatusCode};
 
 /// Encode a byte array into a custom document identifier.
 pub fn encode_doc_id(data: &[u8]) -> String {
@@ -163,4 +164,13 @@ pub async fn validate_key(
 pub fn normalize_domain(input: &str) -> Option<String> {
     let no_scheme = input.trim().trim_start_matches("http://").trim_start_matches("https://");
     no_scheme.split('/').next().map(|s| s.to_lowercase())
+}
+
+// API handler function's header checks
+pub fn get_author_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, String)> {
+    headers
+        .get("author-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing or invalid author-id header".to_string()))
 }

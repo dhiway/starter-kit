@@ -1,5 +1,5 @@
 use core::docs::*;
-use helpers::state::AppState;
+use helpers::{state::AppState, utils::get_author_id_from_headers};
 use gateway::access_control::check_node_id_and_domain_header;
 
 use serde::{Deserialize, Serialize};
@@ -301,6 +301,19 @@ pub async fn create_doc_handler(
 ) -> Result<Json<CreateDocResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
 
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
+
     match create_doc(state.docs.clone()).await {
         Ok(doc_id) => Ok(Json(CreateDocResponse { doc_id })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
@@ -344,6 +357,19 @@ pub async fn drop_doc_handler(
     Json(payload): Json<DropDocRequest>,
 ) -> Result<Json<DropDocResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
+
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
 
     // request body checks
     if payload.doc_id.is_empty() {
@@ -426,6 +452,19 @@ pub async fn close_doc_handler(
 ) -> Result<Json<CloseDocResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
 
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -462,6 +501,19 @@ pub async fn add_doc_schema_handler(
 ) -> Result<Json<AddDocSchemaResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
 
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
+
     // request body checks
     if payload.author_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
@@ -494,6 +546,19 @@ pub async fn set_entry_handler(
     Json(payload): Json<SetEntryRequest>,
 ) -> Result<Json<SetEntryResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
+
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
 
     // request body checks
     if payload.doc_id.is_empty() {
@@ -531,6 +596,19 @@ pub async fn set_entry_file_handler(
     Json(payload): Json<SetEntryFileRequest>,
 ) -> Result<Json<SetEntryFileResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
+
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
 
     // request body checks
     if payload.doc_id.is_empty() {
@@ -654,6 +732,19 @@ pub async fn delete_entry_handler(
 ) -> Result<Json<DeleteEntryResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
 
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
+
     // request body checks
     if payload.doc_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "doc_id cannot be empty".to_string()));
@@ -683,6 +774,19 @@ pub async fn leave_handler(
     Json(payload): Json<LeaveRequest>,
 ) -> Result<Json<LeaveResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
+
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
 
     // request body checks
     if payload.doc_id.is_empty() {
@@ -727,6 +831,19 @@ pub async fn set_download_policy_handler(
     Json(payload): Json<SetDownloadPolicyRequest>,
 ) -> Result<Json<SetDownloadPolicyResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
+
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Check if the calling author is in the list of authors
+    let authors = core::authors::list_authors(state.docs.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if !authors.contains(&caller_author_id) {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "Only a registered author can perform this action".to_string(),
+        ));
+    }
 
     // request body checks
     if payload.doc_id.is_empty() {

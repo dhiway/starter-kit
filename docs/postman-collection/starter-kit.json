@@ -5,7 +5,8 @@
   },
   "variable": [
     { "key": "base_url", "value": "http://localhost:4000" },
-    { "key": "node_id", "value": "your_node_id_here" }
+    { "key": "node_id", "value": "your_node_id_here" },
+    { "key": "author_id", "value": "your_author_id_here" }
   ],
   "item": [
     {
@@ -16,9 +17,13 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
-            "url": { "raw": "{{base_url}}/authors/list-authors", "host": ["{{base_url}}"], "path": ["authors", "list-authors"] }
+            "url": {
+              "raw": "{{base_url}}/authors/list-authors",
+              "host": ["{{base_url}}"],
+              "path": ["authors", "list-authors"]
+            }
           }
         },
         {
@@ -26,9 +31,13 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
-            "url": { "raw": "{{base_url}}/authors/get-default-author", "host": ["{{base_url}}"], "path": ["authors", "get-default-author"] }
+            "url": {
+              "raw": "{{base_url}}/authors/get-default-author",
+              "host": ["{{base_url}}"],
+              "path": ["authors", "get-default-author"]
+            }
           }
         },
         {
@@ -37,10 +46,18 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\"\n}" },
-            "url": { "raw": "{{base_url}}/authors/set-default-author", "host": ["{{base_url}}"], "path": ["authors", "set-default-author"] }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"author_id\": \"author_id_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/authors/set-default-author",
+              "host": ["{{base_url}}"],
+              "path": ["authors", "set-default-author"]
+            }
           }
         },
         {
@@ -48,9 +65,15 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
-            "url": { "raw": "{{base_url}}/authors/create-author", "host": ["{{base_url}}"], "path": ["authors", "create-author"] }
+            "url": {
+              "raw": "{{base_url}}/authors/create-author",
+              "host": ["{{base_url}}"],
+              "path": ["authors", "create-author"]
+            }
           }
         },
         {
@@ -59,10 +82,18 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\"\n}" },
-            "url": { "raw": "{{base_url}}/authors/delete-author", "host": ["{{base_url}}"], "path": ["authors", "delete-author"] }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"author_id\": \"author_id_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/authors/delete-author",
+              "host": ["{{base_url}}"],
+              "path": ["authors", "delete-author"]
+            }
           }
         },
         {
@@ -73,8 +104,15 @@
               { "key": "Content-Type", "value": "application/json", "type": "text" },
               { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\"\n}" },
-            "url": { "raw": "{{base_url}}/authors/verify-author", "host": ["{{base_url}}"], "path": ["authors", "verify-author"] }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"author_id\": \"author_id_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/authors/verify-author",
+              "host": ["{{base_url}}"],
+              "path": ["authors", "verify-author"]
+            }
           }
         }
       ]
@@ -88,7 +126,8 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"content\": \"base64_or_string_content\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/add-blob-bytes", "host": ["{{base_url}}"], "path": ["blobs", "add-blob-bytes"] }
@@ -100,7 +139,8 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"content\": \"base64_or_string_content\",\n  \"name\": \"tag_name\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/add-blob-named", "host": ["{{base_url}}"], "path": ["blobs", "add-blob-named"] }
@@ -112,7 +152,8 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"file_path\": \"path/to/file\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/add-blob-from-path", "host": ["{{base_url}}"], "path": ["blobs", "add-blob-from-path"] }
@@ -124,7 +165,7 @@
             "method": "GET",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"page\": 1,\n  \"page_size\": 10\n}" },
             "url": { "raw": "{{base_url}}/blobs/list-blobs", "host": ["{{base_url}}"], "path": ["blobs", "list-blobs"] }
@@ -136,7 +177,7 @@
             "method": "GET",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/get-blob", "host": ["{{base_url}}"], "path": ["blobs", "get-blob"] }
@@ -148,7 +189,7 @@
             "method": "GET",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/status-blob", "host": ["{{base_url}}"], "path": ["blobs", "status-blob"] }
@@ -160,7 +201,7 @@
             "method": "GET",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/has-blob", "host": ["{{base_url}}"], "path": ["blobs", "has-blob"] }
@@ -172,7 +213,7 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\",\n  \"node_id\": \"{{node_id}}\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/download-blob", "host": ["{{base_url}}"], "path": ["blobs", "download-blob"] }
@@ -184,7 +225,7 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\",\n  \"node_id\": \"{{node_id}}\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/download-hash-sequence", "host": ["{{base_url}}"], "path": ["blobs", "download-hash-sequence"] }
@@ -196,7 +237,7 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": {
               "mode": "raw",
@@ -210,7 +251,7 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "url": { "raw": "{{base_url}}/blobs/list-tags", "host": ["{{base_url}}"], "path": ["blobs", "list-tags"] }
           }
@@ -221,7 +262,8 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+              { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"tag_name\": \"tag_name_here\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/delete-tag", "host": ["{{base_url}}"], "path": ["blobs", "delete-tag"] }
@@ -233,7 +275,7 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+              { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"blob_hash\",\n  \"destination\": \"path/to/destination\"\n}" },
             "url": { "raw": "{{base_url}}/blobs/export-blob-to-file", "host": ["{{base_url}}"], "path": ["blobs", "export-blob-to-file"] }
@@ -250,7 +292,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/get-document", "host": ["{{base_url}}"], "path": ["docs", "get-document"] }
@@ -262,7 +304,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"hash\": \"hash_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/get-entry-blob", "host": ["{{base_url}}"], "path": ["docs", "get-entry-blob"] }
@@ -273,7 +315,9 @@
         "request": {
             "method": "POST",
             "header": [
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "Content-Type", "value": "application/json", "type": "text" },
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "url": { "raw": "{{base_url}}/docs/create-document", "host": ["{{base_url}}"], "path": ["docs", "create-document"] }
         }
@@ -294,7 +338,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/drop-doc", "host": ["{{base_url}}"], "path": ["docs", "drop-doc"] }
@@ -306,7 +351,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"mode\": \"write\",\n  \"addr_options\": \"relay\"\n}" },
             "url": { "raw": "{{base_url}}/docs/share-doc", "host": ["{{base_url}}"], "path": ["docs", "share-doc"] }
@@ -318,7 +363,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"ticket\": \"ticket_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/join-doc", "host": ["{{base_url}}"], "path": ["docs", "join-doc"] }
@@ -330,7 +375,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/close-doc", "host": ["{{base_url}}"], "path": ["docs", "close-doc"] }
@@ -342,7 +388,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"author_id\": \"author_id_here\",\n  \"doc_id\": \"doc_id_here\",\n  \"schema\": \"{\\\"type\\\":\\\"object\\\",...}\" \n}" },
             "url": { "raw": "{{base_url}}/docs/add-doc-schema", "host": ["{{base_url}}"], "path": ["docs", "add-doc-schema"] }
@@ -354,7 +401,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\",\n  \"value\": \"value_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/set-entry", "host": ["{{base_url}}"], "path": ["docs", "set-entry"] }
@@ -366,7 +414,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\",\n  \"file_path\": \"path/to/file\"\n}" },
             "url": { "raw": "{{base_url}}/docs/set-entry-file", "host": ["{{base_url}}"], "path": ["docs", "set-entry-file"] }
@@ -378,7 +426,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\",\n  \"include_empty\": false\n}" },
             "url": { "raw": "{{base_url}}/docs/get-entry", "host": ["{{base_url}}"], "path": ["docs", "get-entry"] }
@@ -390,7 +438,7 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"query_params\": \"{\\\"key\\\":\\\"value\\\"}\"\n}" },
             "url": { "raw": "{{base_url}}/docs/get-entries", "host": ["{{base_url}}"], "path": ["docs", "get-entries"] }
@@ -402,7 +450,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"author_id\": \"author_id_here\",\n  \"key\": \"key_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/delete-entry", "host": ["{{base_url}}"], "path": ["docs", "delete-entry"] }
@@ -414,7 +463,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/leave", "host": ["{{base_url}}"], "path": ["docs", "leave"] }
@@ -426,7 +476,7 @@
             "method": "GET",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/status", "host": ["{{base_url}}"], "path": ["docs", "status"] }
@@ -438,7 +488,8 @@
             "method": "POST",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" },
+            { "key": "author-ID", "value": "{{author_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\",\n  \"download_policy\": \"{\\\"policy\\\":\\\"value\\\"}\"\n}" },
             "url": { "raw": "{{base_url}}/docs/set-download-policy", "host": ["{{base_url}}"], "path": ["docs", "set-download-policy"] }
@@ -450,7 +501,7 @@
             "method": "GET",
             "header": [
             { "key": "Content-Type", "value": "application/json", "type": "text" },
-            { "key": "nodeId", "value": "{{node_id}}", "type": "text" }
+            { "key": "node-ID", "value": "{{node_id}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"doc_id\": \"doc_id_here\"\n}" },
             "url": { "raw": "{{base_url}}/docs/get-download-policy", "host": ["{{base_url}}"], "path": ["docs", "get-download-policy"] }
