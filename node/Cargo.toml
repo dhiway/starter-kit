@@ -16,3 +16,4 @@ hex = "0.4.3"
 rand = "0.8.5"
 
 helpers = { path = "../helpers" }
+keystore = { path = "../keystore"}

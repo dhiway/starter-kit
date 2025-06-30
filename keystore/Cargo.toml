@@ -1,0 +1,11 @@
+[package]
+name = "keystore"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iroh = "0.33.0"
+sp-core = "=36.1.0"
+sc-keystore = "35.0.0"
+anyhow = "1"
+tracing = "0.1.41"

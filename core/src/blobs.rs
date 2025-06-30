@@ -495,29 +495,23 @@ mod tests {
     // To view the lcov file in browser, use ```open target/llvm-cov/html/index.html```.
 
     pub async fn setup_node() -> Result<IrohNode> {
-        let secret_key = "cb9ce6327139d4d168ba753e4b12434f523221612fcabc600cdc57bba40c29de";
+        if fs::try_exists("Test/test_blobs").await? {
+            fs::remove_dir_all("Test/test_blobs").await?;
+        }
+        if fs::try_exists("Test").await? {
+            fs::remove_dir_all("Test").await?;
+        }
+
+        sleep(Duration::from_secs(2)).await;
 
         fs::create_dir_all("Test").await?;
 
-        let mut child = Command::new("cargo")
-        .arg("run")
-        .arg("--")
-        .arg("--path")
-        .arg("Test/test_blobs")
-        .arg("--secret-key")
-        .arg(secret_key)
-        .stdout(Stdio::null()) // Silence output, or use `inherit()` for debug
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to start cargo run");
-
-        sleep(Duration::from_secs(5)).await;
-
-        child.kill().await.ok();
-
         let args = CliArgs {
-            path: Some(PathBuf::from("Test/test_blobs")),
-            secret_key: Some(secret_key.to_string()), // remove this secret key
+            path: Some("Test/test_blobs".to_string()),
+            password: "test_password".to_string(),  
+            bootstrap: true,
+            suri: Some("0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string()), // don't use this suri in production, it is a preloaded suri for testing(for //Alice)
+            secret: Some("test-secret".to_string()), // remove this secret key
         };
         let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node"))
@@ -575,6 +569,7 @@ mod tests {
         fs::create_dir_all("Test").await?;
         let mut file = File::create("Test/dummy_blob_data.txt").await?;
         file.write_all(b"This is a file with dummy blob data.").await?;
+        file.flush().await?;
 
         let outcome = add_blob_from_path(blobs.clone(), &PathBuf::from("Test/dummy_blob_data.txt")).await?;
         let output_string = get_blob(blobs, outcome.hash.to_string()).await?;
@@ -734,10 +729,12 @@ mod tests {
         // try to simulate Partial status
         // NOTE: we are trying to spin up second node, hence change the path and the secret key form node 1.
         let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
-        let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
         let args = CliArgs {
-            path: path_2.clone(),
-            secret_key: secret_key_2,
+            path: Some("Test/test_blobs_1".to_string()),
+            password: "test_password-2".to_string(),
+            bootstrap: true,
+            suri: Some("0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string()),
+            secret: Some("test-secret-2".to_string()), // remove this secret key
         };
         let iroh_node_2: IrohNode = setup_iroh_node(args).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node"))
@@ -852,8 +849,11 @@ mod tests {
         let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
         let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
         let args = CliArgs {
-            path: path_2.clone(),
-            secret_key: secret_key_2,
+            path: Some("Test/test_blobs".to_string()),
+            password: "test_password".to_string(),
+            bootstrap: true,
+            suri: Some("//Alice".to_string()),
+            secret: secret_key_2.clone(), // remove this secret key
         };
         let iroh_node_2: IrohNode = setup_iroh_node(args).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node"))
@@ -1001,8 +1001,11 @@ mod tests {
         let path_2 = Some(PathBuf::from("Test/test_blobs_1"));
         let secret_key_2 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f3".to_string());
         let args_2 = CliArgs {
-            path: path_2.clone(),
-            secret_key: secret_key_2,
+            path: Some("Test/test_blobs".to_string()),
+            password: "test_password".to_string(),
+            bootstrap: true,
+            suri: Some("//Alice".to_string()),
+            secret: secret_key_2.clone(), // remove this secret key
         };
         let iroh_node_2: IrohNode = setup_iroh_node(args_2).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node 2"))
@@ -1016,8 +1019,11 @@ mod tests {
         let path_3 = Some(PathBuf::from("Test/test_blobs_2"));
         let secret_key_3 = Some("c6135803322e8c268313574920853c7f940489a74bee4d7e2566b773386283f4".to_string());
         let args_3 = CliArgs {
-            path: path_3.clone(),
-            secret_key: secret_key_3,
+            path: Some("Test/test_blobs".to_string()),
+            password: "test_password".to_string(),
+            bootstrap: true,
+            suri: Some("//Alice".to_string()),
+            secret: secret_key_2.clone(), // remove this secret key
         };
         let iroh_node_3: IrohNode = setup_iroh_node(args_3).await.or_else(|_| {
             Err(anyhow!("Failed to set up Iroh node 3"))

@@ -231,32 +231,26 @@ mod tests {
     // To view the lcov file in browser, use ```open target/llvm-cov/html/index.html```.
 
     pub async fn setup_node() -> Result<IrohNode> {
-        let secret_key = "cb9ce6327139d4d168ba753e4b12434f523221612fcabc600cdc57bba40c29de";
+        if fs::try_exists("Test/test_blobs").await? {
+            fs::remove_dir_all("Test/test_blobs").await?;
+        }
+        if fs::try_exists("Test").await? {
+            fs::remove_dir_all("Test").await?;
+        }
+
+        sleep(Duration::from_secs(2)).await;
 
         fs::create_dir_all("Test").await?;
 
-        let mut child = Command::new("cargo")
-        .arg("run")
-        .arg("--")
-        .arg("--path")
-        .arg("Test/test_blobs")
-        .arg("--secret-key")
-        .arg(secret_key)
-        .stdout(Stdio::null()) // Silence output, or use `inherit()` for debug
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to start cargo run");
-
-        sleep(Duration::from_secs(5)).await;
-
-        child.kill().await.ok();
-
         let args = CliArgs {
-            path: Some(PathBuf::from("Test/test_blobs")),
-            secret_key: Some(secret_key.to_string()), // remove this secret key
+            path: Some("Test/test_blobs".to_string()),
+            password: "test_password".to_string(),
+            bootstrap: true,
+            suri: Some("0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string()), // don't use this suri in production, it is a preloaded suri for testing(for //Alice)
+            secret: Some("test-secret".to_string()), // remove this secret key
         };
-        let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|_| {
-            Err(anyhow!("Failed to set up Iroh node"))
+        let iroh_node: IrohNode = setup_iroh_node(args).await.or_else(|e| {
+            Err(anyhow!("Failed to set up Iroh node. Error: {}", e))
         })?;
         println!("Iroh node started!");
         println!("Your NodeId: {}", iroh_node.node_id);
