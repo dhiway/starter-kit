@@ -105,6 +105,16 @@ pub async fn set_default_author_handler(
 ) -> Result<Json<SetDefaultAuthorResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
 
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Only default author can set default author
+    let default_author = get_default_author(state.docs.clone())
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if caller_author_id != default_author {
+        return Err((StatusCode::FORBIDDEN, "Only the default author can perform this action".to_string()));
+    }
+
     // request body checks
     if payload.author_id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "author_id cannot be empty".to_string()));
@@ -125,6 +135,16 @@ pub async fn create_author_handler(
 ) -> Result<Json<CreateAuthorResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
 
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Only default author can set default author
+    let default_author = get_default_author(state.docs.clone())
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if caller_author_id != default_author {
+        return Err((StatusCode::FORBIDDEN, "Only the default author can perform this action".to_string()));
+    }
+
     match create_author(state.docs.clone()).await {
         Ok(author_id) => Ok(Json(CreateAuthorResponse { author_id })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
@@ -138,6 +158,16 @@ pub async fn delete_author_handler(
     Json(payload): Json<DeleteAuthorRequest>,
 ) -> Result<Json<DeleteAuthorResponse>, (StatusCode, String)> {
     check_node_id_and_domain_header(&headers)?;
+
+    let caller_author_id = get_author_id_from_headers(&headers)?;
+
+    // Only default author can set default author
+    let default_author = get_default_author(state.docs.clone())
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if caller_author_id != default_author {
+        return Err((StatusCode::FORBIDDEN, "Only the default author can perform this action".to_string()));
+    }
 
     // request body checks
     if payload.author_id.is_empty() {
@@ -169,4 +199,13 @@ pub async fn verify_author_handler(
         Ok(is_valid) => Ok(Json(VerifyAuthorResponse { is_valid })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
+}
+
+// helper function to check if the author ID of the caller matches the default author ID
+fn get_author_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, String)> {
+    headers
+        .get("author-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing or invalid x-author-id header".to_string()))
 }
