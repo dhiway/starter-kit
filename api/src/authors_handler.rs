@@ -1,4 +1,4 @@
-use helpers::state::AppState;
+use helpers::{state::AppState, utils::get_author_id_from_headers};
 use gateway::access_control::check_node_id_and_domain_header;
 
 use core::authors::*;
@@ -199,13 +199,4 @@ pub async fn verify_author_handler(
         Ok(is_valid) => Ok(Json(VerifyAuthorResponse { is_valid })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
-}
-
-// helper function to check if the author ID of the caller matches the default author ID
-fn get_author_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, String)> {
-    headers
-        .get("author-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .ok_or((StatusCode::UNAUTHORIZED, "Missing or invalid x-author-id header".to_string()))
 }
