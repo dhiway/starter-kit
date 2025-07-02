@@ -19,6 +19,10 @@ regex = "1.11.1"
 anyhow = "1"
 futures = "=0.3.31"
 tempfile = "3.19.1"
+subxt-rpcs = "0.42.1"
+subxt = "0.42.1"
 
 helpers = { path = "../helpers" }
 node = { path = "../node"}
+keystore = { path = "../keystore" }
+cord = { path = "../cord" }

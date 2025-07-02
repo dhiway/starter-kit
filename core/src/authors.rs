@@ -1,10 +1,15 @@
 use helpers::utils::SS58AuthorId;
+use keystore::keystore::CordKeystoreSigner;
+use cord::profile::create_profile;
 
 use anyhow::{Result, Context};
 use std::{collections::HashSet, sync::Arc, fmt};
 use iroh_docs::{protocol::Docs, AuthorId};
 use iroh_blobs::store::fs::Store;
 use futures::TryStreamExt;
+use subxt_rpcs::RpcClient;
+use subxt::config::PolkadotConfig;
+use subxt::client::OnlineClient;
 
 // Errors
 #[derive(Debug, PartialEq, Clone)]
@@ -126,7 +131,22 @@ pub async fn set_default_author(
 /// * `String` - The SS58-encoded ID of the newly created author.
 pub async fn create_author(
     docs: Arc<Docs<Store>>,
+    // cord_client: Arc<RpcClient>,
+    cord_client: Arc<OnlineClient<PolkadotConfig>>,
+    cord_signer: CordKeystoreSigner,
 ) -> Result<String, AuthorError> {
+    // add a cord call to create a profile
+    match create_profile(cord_client, cord_signer).await {
+        Ok((who, identifier)) => {
+            println!("Created profile: {}, {}", who, identifier);
+        }
+        Err(e) => {
+            println!("Failed to create profile: {e}");
+            // You can choose to return an error or continue, e.g.:
+            // return Err(AuthorError::FailedToCreateAuthor);
+        }
+    }
+
     let authors_client = docs.client().authors();
 
     let author_id = authors_client

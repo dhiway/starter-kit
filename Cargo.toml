@@ -7,7 +7,8 @@ members = [
     "router",
     "bin",
     "gateway",
-    "keystore"
+    "keystore",
+    "cord"
 ]
 
 resolver = "2"

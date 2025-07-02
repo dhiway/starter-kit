@@ -6,6 +6,8 @@ use std::{sync::Arc, fmt, path::PathBuf};
 use anyhow::Result;
 use anyhow::anyhow;
 use tracing::info;
+use subxt::{tx::Signer, config::PolkadotConfig, utils::MultiSignature};
+// use sp_runtime::MultiSignature;
 
 pub const CORD_KEY_TYPE: KeyTypeId = KeyTypeId(*b"cord");
 // why is this not public? 
@@ -18,6 +20,28 @@ pub trait SecretKeyExt {
 impl SecretKeyExt for SecretKey {
     fn from_seed(seed: [u8; 32]) -> Self {
         SecretKey::from_bytes(&seed)
+    }
+}
+
+#[derive(Clone)]
+pub struct CordKeystoreSigner {
+    pub keystore: Arc<LocalKeystore>, 
+    pub public: sr25519::Public,   // public key of the CORD keypair
+}
+
+impl Signer<PolkadotConfig> for CordKeystoreSigner {
+    fn account_id(&self) -> <PolkadotConfig as subxt::Config>::AccountId {
+        self.public.0.into()
+    }
+
+    fn sign(&self, payload: &[u8]) -> <PolkadotConfig as subxt::Config>::Signature {
+        let sig = self.keystore
+            .sr25519_sign(CORD_KEY_TYPE, &self.public, payload)
+            .expect("Failed to sign payload with CORD keypair")
+            .expect("No CORD compatible key found in the keystore");
+        
+        // MultiSignature::from(sr25519::Signature::from(sig))
+        MultiSignature::Sr25519(sig.0)
     }
 }
 
@@ -234,5 +258,11 @@ impl StarterkitKeystore {
         let secret_key = SecretKey::from_seed(seed);
 
         Ok(secret_key)
+    }
+
+    pub fn get_cord_signer(&self) -> Result<CordKeystoreSigner> {
+        let keystore = self.inner();
+        let public = self.get_cord_public_key()?;
+        Ok(CordKeystoreSigner { keystore, public })
     }
 }

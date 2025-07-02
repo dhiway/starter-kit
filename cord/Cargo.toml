@@ -1,0 +1,12 @@
+[package]
+name = "cord"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+subxt-rpcs = "0.42.1"
+subxt = "0.42.1"
+sp-core = "=36.1.0"
+hex = "0.4"
+
+keystore = { path = "../keystore" }

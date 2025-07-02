@@ -145,7 +145,7 @@ pub async fn create_author_handler(
         return Err((StatusCode::FORBIDDEN, "Only the default author can perform this action".to_string()));
     }
 
-    match create_author(state.docs.clone()).await {
+    match create_author(state.docs.clone(), state.cord_client.clone(), state.cord_signer.clone()).await {
         Ok(author_id) => Ok(Json(CreateAuthorResponse { author_id })),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }

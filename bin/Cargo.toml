@@ -16,3 +16,4 @@ node = { path = "../node" }
 router = { path = "../router" }
 helpers = { path = "../helpers" }
 gateway = { path = "../gateway" }
+cord = { path = "../cord" }
