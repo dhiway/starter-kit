@@ -9,14 +9,18 @@ use gateway::{
     storage::init_access_control,
     access_control::{set_storage_path, ensure_self_node_id_allowed},
 };
+use cord::cord::connect_to_chain;
 
 use tokio::signal;
 use std::error::Error;
 use clap::Parser;
-
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let cord_client = connect_to_chain().await?;
+    let cord_client = Arc::new(cord_client);
+
     // Parse CLI arguments
     let args = CliArgs::parse();
 
@@ -52,6 +56,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let state = AppState {
         blobs: iroh_node.blobs.clone(),
         docs: iroh_node.docs.clone(),
+        cord_client: cord_client.clone(),
+        cord_signer: iroh_node.cord_signer.clone(),
     };
 
     let app = create_router(state);

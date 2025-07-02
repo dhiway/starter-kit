@@ -1,6 +1,6 @@
 use helpers::cli::CliArgs;
 // use keystore::StarterkitKeystore;
-use keystore::keystore::StarterkitKeystore;
+use keystore::keystore::{StarterkitKeystore, CordKeystoreSigner};
 
 use iroh::{Endpoint, RelayMode, SecretKey, protocol::Router};
 use std::error::Error;
@@ -20,11 +20,10 @@ pub struct IrohNode {
     pub router: Router,
     pub blobs: Arc<Blobs<blob_store_fs>>,
     pub docs: Arc<Docs<blob_store_fs>>,
+    pub cord_signer: CordKeystoreSigner,
 }
 
 pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> {
-    println!("CliArgs: {:?}", args);
-
     // password should always be provided
     if args.password.is_empty() {
         return Err("❌ Password is required. Please provide --password <PASSWORD>.".into());
@@ -42,6 +41,7 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
 
     let mut path: PathBuf;
     let mut secret_key: SecretKey;
+    let mut cord_signer: CordKeystoreSigner;
 
     // it is a bootstrap operation or a restart operation
     if args.bootstrap {
@@ -100,9 +100,10 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
         secret_key = keystore
             .get_starter_kit_seed(starter_kit_pair)
             .map_err(|e| format!("❌ Failed to get starter kit seed: {e}"))?;
-        println!("secret_key: {}", secret_key);
         
         println!("✅ Keystore initialized successfully.\n");
+
+        cord_signer = keystore.get_cord_signer()?;
 
         println!("🎉 Bootstarpping process completed successfully.\n");
     } else {
@@ -165,6 +166,8 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
 
         println!("✅ Keystore opened successfully.\n");
 
+        cord_signer = keystore.get_cord_signer()?;
+
         println!("🎉 Restarting process completed successfully.\n");
     }
 
@@ -195,5 +198,6 @@ pub async fn setup_iroh_node(args: CliArgs) -> Result<IrohNode, Box<dyn Error>> 
         router,
         blobs: Arc::new(blobs),
         docs: Arc::new(docs),
+        cord_signer,
     })
 }
